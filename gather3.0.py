@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jan 17 08:56:13 2024
+Created on Wed Jan 17 16:09:33 2024
 
 @author: amilighe
+
 
 The code should be stored in the same folder as the gather sheet. The output
 will also be in the same folder.
 
 Notes on the creation of the template:
     - Authority files should be in teh format:
-            Name>role>altrender|Name>role>altreder
+            Name=role=altrender|Name=role=altreder
       with no extra spaces.
       The authority file sheet's name is hard-coded in the code.
     - The authority file sheet should be updated to match the authority files
@@ -30,8 +31,46 @@ from lxml.builder import ElementMaker
 from lxml.etree import Comment
 from openpyxl import load_workbook
 
-# Definitions used to create the nodes:
 
+# These are the column number for the fields used
+# If the template changes, change the column numbers here
+# IAMS template:
+repository_clmn = 0
+coll_area_clmn = 1
+collection_clmn = 2
+level_clmn = 4
+reference_clmn = 5
+ext_ref_clmn = 6
+title_clmn = 7
+date_rng_clmn = 8
+era_clmn = 9
+calendar_clmn = 10
+extent_clmn = 11
+scope_content_clmn = 12
+phys_char_clmn = 13
+access_cond_clmn = 14
+arrangement_clmn = 15
+mat_language_clmn = 23
+mat_langcode_clmn = 24
+mat_script_clmn = 25
+mat_scriptcode_clmn = 26
+descr_lang_clmn = 27
+descr_langcode_clmn = 28
+descr_script_clmn = 29
+descr_scriptcode_clmn = 30
+rel_persons_clmn = 31
+rel_fams_clmn = 32
+rel_corp_bds_clmn = 33
+rel_places_clmn = 34
+rel_subject_clmn = 35
+legal_sts_clmn = 43
+mat_type_clmn = 50
+# Authority files document
+auth_name_clmn = 36
+auth_ark_id_clmn = 9
+
+
+# Definitions used to create the nodes:
 
 def get_header(ws):
     header = []
@@ -57,7 +96,7 @@ def tid(row, arg):
 
 def content(row, arg):
     if row[arg].value:
-        return row[arg].value
+        return str(row[arg].value)
     else:
         return {}
 
@@ -98,12 +137,12 @@ def pcontent(row, arg):
 
 
 # Authority Files processing definitions
-def gen_auth_lookup(auth_ws):
+def gen_auth_lookup(auth_ws, auth_name_clmn, auth_ark_id_clmn):
     auth_lookup = {}
     for row_num, row in enumerate(auth_ws.iter_rows()):
-        auth_name = str(row[36].value).strip().lower()
-        if row[9].value:
-            ark_id = row[9].value
+        auth_name = str(row[auth_name_clmn].value).strip().lower()
+        if row[auth_ark_id_clmn].value:
+            ark_id = row[auth_ark_id_clmn].value
         else:
             ark_id = "not_allocated"
         auth_lookup[auth_name] = ark_id
@@ -130,8 +169,11 @@ def authority_files(row, arg, auth_lookup):
                 role_type = attributes[1]
             if len(attributes) > 2:
                 altrender_type = attributes[2]
-            element_dict = {31: E.persname, 32: E.famname, 33: E.corpname,
-                            34: E.geogname, 35: E.subject}
+            element_dict = {rel_persons_clmn: E.persname,
+                            rel_fams_clmn: E.famname,
+                            rel_corp_bds_clmn: E.corpname,
+                            rel_places_clmn: E.geogname,
+                            rel_subject_clmn: E.subject}
             text = element_dict[arg](
                 subject,
                 {"authfilenumber":
@@ -148,17 +190,14 @@ def authority_files(row, arg, auth_lookup):
 
 
 # The actual code starts here.
-
 # This part defines where the authority files details are held.
-
 auth_file_name = 'TB_Authorities.xlsx'
 auth_file_wb = load_workbook(auth_file_name, read_only=True)
 auth_ws = auth_file_wb["in"]
-auth_lookup = gen_auth_lookup(auth_ws)
+auth_lookup = gen_auth_lookup(auth_ws, auth_name_clmn, auth_ark_id_clmn)
 
 # This selects the spreadsheet to gather
 # One tab each shelfmark to gather.
-
 wb_input = input(
     'Please write the name of the spreadsheet to Gather. Omit ".xlsx": ')
 wb_name = wb_input + '.xlsx'
@@ -182,16 +221,17 @@ for shelfmark_modified in shelfmarks:
 
     for row in ws.iter_rows(min_row=2, values_only=False):
         ead = E.ead()
-        comment = Comment(f"New record starts here {row[5].value}")
+        comment = Comment(
+            f"New record starts here {row[reference_clmn].value}")
         full_ead.append(comment)
-        shelfmark = str(row[5].value)
+        shelfmark = str(row[reference_clmn].value)
         print(shelfmark)
 
         # header
         eadheader = E.eadheader(start_record(str(rec_num)))
         ead.append(eadheader)
 
-        eadid = E.eadid(str(shelfmark), tid(row, 5))
+        eadid = E.eadid(str(shelfmark), tid(row, reference_clmn))
         eadheader.append(eadid)
 
         filedesc = E.filedesc()  # wrapper node, should not have info
@@ -210,24 +250,27 @@ for shelfmark_modified in shelfmarks:
         profiledesc.append(creation)
 
         date_exported = E.date(str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-                                   ), {"type": "exported"}, tid(row, 5))
+                                   ), {"type": "exported"},
+                               tid(row, reference_clmn))
         creation.append(date_exported)
 
         date_modified = E.date(str(wb.properties.modified.strftime(
-            "%Y-%m-%dT%H:%M:%S")), {"type": "modified"}, tid(row, 5))
+            "%Y-%m-%dT%H:%M:%S")), {"type": "modified"},
+            tid(row, reference_clmn))
         creation.append(date_modified)
 
         langusage = E.langusage()  # not used in IAMS material
         profiledesc.append(langusage)
 
         # this is language of the description
-        language = E.language(content(row, 27),
-                              labels(row, 28, "langcode"),
-                              labels(row, 30, "scriptcode"), tid(row, 27))
+        language = E.language(content(row, descr_lang_clmn),
+                              labels(row, descr_langcode_clmn, "langcode"),
+                              labels(row, descr_scriptcode_clmn, "scriptcode"),
+                              tid(row, descr_lang_clmn))
         langusage.append(language)
 
         # archdesc
-        archdesc = E.archdesc(labels(row, 4, "level"))
+        archdesc = E.archdesc(labels(row, level_clmn, "level"))
         ead.append(archdesc)
 
         did = E.did()  # wrapper node, should not have info
@@ -235,24 +278,27 @@ for shelfmark_modified in shelfmarks:
 
         # British Library: Indian Office Records
         repository = E.repository(
-            row[0].value + ": " + row[1].value, tid(row, 0))
+            row[repository_clmn].value + ": " + row[coll_area_clmn].value,
+            tid(row, repository_clmn))
         did.append(repository)
 
         unitid = E.unitid(shelfmark, {"label": "IAMS_label_NA"},
-                          {"identifier": "ark_identifier"}, tid(row, 5))
+                          {"identifier": "ark_identifier"},
+                          tid(row, reference_clmn))
         # These are the IAMS identifiers (ark and number)
         did.append(unitid)
 
         # this will say "title"
-        unittitle = E.unittitle(header_label(header_row, 7, "label"))
+        unittitle = E.unittitle(header_label(header_row, title_clmn, "label"))
         did.append(unittitle)
 
-        title = E.title(content(row, 7), tid(row, 7))  # Item title
+        # Item title
+        title = E.title(content(row, title_clmn), tid(row, title_clmn))
         unittitle.append(title)
 
-        if row[6].value:
-            unittitle = E.unittitle(content(row, 6), header_label(
-                header_row, 6, "label"), tid(row, 6))
+        if row[ext_ref_clmn].value:
+            unittitle = E.unittitle(content(row, ext_ref_clmn), header_label(
+                header_row, ext_ref_clmn, "label"), tid(row, ext_ref_clmn))
         else:
             unittitle = E.unittitle({"label": "Former external reference"})
         did.append(unittitle)  # Former external reference
@@ -260,25 +306,28 @@ for shelfmark_modified in shelfmarks:
         unittitle = E.unittitle({"label": "Former internal reference"})
         did.append(unittitle)  # Former internal reference (not used)
 
-        unitdate = E.unitdate(content(row, 8), {
-            "datechar": "Creation"}, labels(row, 10, "calendar"), labels(
-                row, 9, "era"), date_normal(row, 8), tid(row, 8))
+        unitdate = E.unitdate(content(row, date_rng_clmn), {
+            "datechar": "Creation"}, labels(row, calendar_clmn, "calendar"),
+            labels(row, era_clmn, "era"), date_normal(row, date_rng_clmn),
+            tid(row, date_rng_clmn))
         did.append(unitdate)  # Date of the material
 
         # langmaterial = E.langmaterial()  # This is language
         # did.append(langmaterial)
 
         # This allows for multiple languages and language codes separated by |
-        # (23, 24) for language, (25, 26) for script
+        # (mat_language_clmn, mat_langcode_clmn) for language
+        # (mat_script_clmn, mat_scriptcode_clmn) for script
         code_label_index = 0
-        for r in ((23, 24), (25, 26)):
+        for r in ((mat_language_clmn, mat_langcode_clmn),
+                  (mat_script_clmn, mat_scriptcode_clmn)):
             langmaterial = E.langmaterial()
             did.append(langmaterial)
             languages = row[r[0]].value.split("|")
             lang_codes = row[r[1]].value.split("|")
             code_labels = ["langcode", "scriptcode"]
-            for l, c in zip(languages, lang_codes):
-                language = E.language(l, {code_labels[code_label_index]: c},
+            for lang, c in zip(languages, lang_codes):
+                language = E.language(lang, {code_labels[code_label_index]: c},
                                       tid(row, r[0]))
                 langmaterial.append(language)
             code_label_index += 1
@@ -286,11 +335,11 @@ for shelfmark_modified in shelfmarks:
         physdesc = E.physdesc()  # wrapper node, should not have info
         did.append(physdesc)
 
-        extent = E.extent(content(row, 11), tid(row, 11))
+        extent = E.extent(content(row, extent_clmn), tid(row, extent_clmn))
         physdesc.append(extent)
 
         accessrestrict = E.accessrestrict()
-        for p in pcontent(row, 14):
+        for p in pcontent(row, access_cond_clmn):
             accessrestrict.append(p)
         archdesc.append(accessrestrict)
 
@@ -298,7 +347,8 @@ for shelfmark_modified in shelfmarks:
         # This second accessrestrict is a wrapper node
         archdesc.append(accessrestrict)
 
-        legalstatus = E.legalstatus(content(row, 43), tid(row, 43))
+        legalstatus = E.legalstatus(content(row, legal_sts_clmn),
+                                    tid(row, legal_sts_clmn))
         accessrestrict.append(legalstatus)
 
         accruals = E.accruals()  # Empty node
@@ -317,43 +367,45 @@ for shelfmark_modified in shelfmarks:
         archdesc.append(appraisal)
 
         arrangement = E.arrangement()
-        for p in pcontent(row, 15):
+        for p in pcontent(row, arrangement_clmn):
             arrangement.append(p)
         archdesc.append(arrangement)
 
-        if row_num == 1:
-            phystech = E.phystech()
-            for p in pcontent(row, 13):
-                phystech.append(p)
-            archdesc.append(phystech)
+        phystech = E.phystech()
+        for p in pcontent(row, phys_char_clmn):
+            phystech.append(p)
+        archdesc.append(phystech)
 
         # This section allows for bullet points in the scope and content
         scopecontent = E.scopecontent()
         lists = E.list()
-        if row[12].value.find("-"):
-            list_content = []
-            top_content = []
-            bottom_content = []
-            lines = row[12].value.split("\n")
-            for line in lines:
-                if line.startswith("-"):
-                    list_content.append(line)
-                elif list_content == []:
-                    top_content.append(line)
-                else:
-                    bottom_content.append(line)
-            for section in top_content:
-                p = E.p(section, tid(row, 12))
-                scopecontent.append(p)
-            for section in list_content:
-                item = E.item(section.strip("-"), tid(row, 12))
-                lists.append(item)
-                scopecontent.append(lists)
-            for section in bottom_content:
-                p = E.p(section, tid(row, 12))
-                scopecontent.append(p)
+        if row[scope_content_clmn].value:
+            if row[scope_content_clmn].value.find("-"):
+                list_content = []
+                top_content = []
+                bottom_content = []
+                lines = row[scope_content_clmn].value.split("\n")
+                for line in lines:
+                    if line.startswith("-"):
+                        line = line.replace("- ", "")
+                        list_content.append(line)
+                    elif list_content == []:
+                        top_content.append(line)
+                    else:
+                        bottom_content.append(line)
+                for section in top_content:
+                    p = E.p(section, tid(row, scope_content_clmn))
+                    scopecontent.append(p)
+                for section in list_content:
+                    item = E.item(section.strip("-"),
+                                  tid(row, scope_content_clmn))
+                    lists.append(item)
+                    scopecontent.append(lists)
+                for section in bottom_content:
+                    p = E.p(section, tid(row, scope_content_clmn))
+                    scopecontent.append(p)
         else:
-            for p in pcontent(row, 12):
+            for p in pcontent(row, scope_content_clmn):
                 scopecontent.append(p)
         archdesc.append(scopecontent)
 
@@ -369,23 +421,24 @@ for shelfmark_modified in shelfmarks:
 
         controlaccess = E.controlaccess()
         genreform = E.genreform(
-            content(row, 50), {"source": "IAMS"}, tid(row, 50))
+            content(row, mat_type_clmn), {"source": "IAMS"},
+            tid(row, mat_type_clmn))
         controlaccess.append(genreform)
 
         # Authority files processing starts here:
-        for arg in range(31, 36, 1):
+        for arg in range(rel_persons_clmn, rel_subject_clmn+1, 1):
             for af in authority_files(row, arg, auth_lookup):
                 controlaccess.append(af)
         archdesc.append(controlaccess)
         # End of authority files
 
         note = E.note({"type": "project/collection"})
-        for p in pcontent(row, 1):
+        for p in pcontent(row, coll_area_clmn):
             note.append(p)
         controlaccess.append(note)
 
         note = E.note({"type": "project/collection"})
-        for p in pcontent(row, 2):
+        for p in pcontent(row, collection_clmn):
             note.append(p)
         controlaccess.append(note)
 
