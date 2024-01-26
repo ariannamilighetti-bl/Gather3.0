@@ -3,13 +3,6 @@
 Created on Thu Jan 25 17:09:02 2024
 
 @author: amilighe
-"""
-
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Jan 25 10:07:52 2024
-
-@author: amilighe
 
 The code should be stored in the same folder as the gather sheet. The output
 will also be in the same folder.
@@ -392,7 +385,7 @@ for shelfmark_modified in shelfmarks:
                 paragraphs = row[scope_content_clmn].value.split("</p>")
                 for chunk in paragraphs:
                     lines = chunk.split("</item>")
-                    for line in lines: 
+                    for line in lines:
                         line = line.strip()
                         if line:
                             tid_label = tid(row, scope_content_clmn)
@@ -404,7 +397,9 @@ for shelfmark_modified in shelfmarks:
                                 bottom = line.split("</emph>")[1]
                                 emph_tid = shelfmark_modified+"_"+str(tid_num)
                                 tid_num += 1
-                                line = top + '<ead:emph render="italic" tid="' + emph_tid + '">' + emph + '</ead:emph>' + bottom
+                                line = top + '<ead:emph render="italic" tid="'
+                                + emph_tid + '">' + emph + '</ead:emph>'
+                                + bottom
                             line = line.replace("<list>", "").replace(
                                 "</list>", "")
                             if line.startswith("<item>"):
