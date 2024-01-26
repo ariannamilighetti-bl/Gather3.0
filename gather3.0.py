@@ -44,7 +44,7 @@ def tid (row,arg):
         return{"tid":tid_full}
     else:
         return""
-def typed(arg):
+def date_type(arg):
     return{"type":arg}
 def langcode (row):
     lang_code = row[45].value
@@ -79,9 +79,9 @@ def date_in_full(row):
     else:
        date_item = str(row[15].value) 
     return date_item
-def mat_langcode(row):
-    lang_code = row[41].value
-    return{"langcode":lang_code}
+def mat_langcode(c):
+    #lang_code = row[41].value
+    return{"langcode":c}
 def mat_scriptcode(row):
     script_code = row[43].value
     return{"scriptcode":script_code}
@@ -108,7 +108,12 @@ def altrender (altrender_type):
     else:
         return {"altrender":altrender_type}
 
-
+def lang_content(l):
+    if l:
+        return l
+    else:
+        return""
+        
 def content(row,arg):
     if row[arg].value:
         return row[arg].value    
@@ -231,7 +236,7 @@ for shelfmark_modified in shelfmarks:
     DATE = E.date
     LANGUSAGE = E.langusage
     LANGUAGE = E.language
-    LANGUAGE1 = E.language1
+    #LANGUAGE1 = E.language1
     ARCHDESC = E.archdesc
     DID = E.did
     REPOSITORY = E.repository
@@ -284,9 +289,9 @@ for shelfmark_modified in shelfmarks:
        profiledesc = PROFILEDESC()
        creation = CREATION()
        date = DATE()
-       date = DATE(str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S")), typed("exported"),tid(row,5))
+       date = DATE(str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S")), date_type("exported"),tid(row,5))
        creation.append(date)
-       date = DATE(str(wb.properties.modified.strftime("%Y-%m-%dT%H:%M:%S")), typed("modified"),tid(row,5))
+       date = DATE(str(wb.properties.modified.strftime("%Y-%m-%dT%H:%M:%S")), date_type("modified"),tid(row,5))
        creation.append(date)
        langusage = LANGUSAGE()
        language = LANGUAGE(content(row,40),langcode(row),scriptcode(row),tid(row,40))
@@ -302,7 +307,14 @@ for shelfmark_modified in shelfmarks:
        unittitle3 = UNITTITLE(content(row,6),label(6,header_row),tid(row,6))
        unitdate = UNITDATE(date_in_full(row),datechar(row),calendar(row),era(row),normal(row),tid(row,14))
        langmaterial = LANGMATERIAL()
-       language1 = LANGUAGE(content(row,40),mat_langcode(row),tid(row,41))
+       languages = row[40].value.split("|")
+       lang_codes = row[41].value.split("|")
+       for i in range(0,len(languages)):
+           l = languages[i]
+           c = lang_codes[i]
+           language1 = LANGUAGE(lang_content(l),mat_langcode(c),tid(row,41))
+           langmaterial.append(language1)
+                  
        langmaterial1 = LANGMATERIAL()
        language2 = LANGUAGE(content(row,42),mat_scriptcode(row),tid(row,43))
        physdesc = PHYSDESC()
@@ -409,7 +421,7 @@ for shelfmark_modified in shelfmarks:
        did.append(unittitle3)
        did.append(unitdate)
        did.append(langmaterial)
-       langmaterial.append(language1)
+       
        did.append(langmaterial1)
        langmaterial1.append(language2)
        did.append(physdesc)
