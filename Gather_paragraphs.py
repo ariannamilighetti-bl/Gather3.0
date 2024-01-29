@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jan 25 17:09:02 2024
+Created on Mon Jan 29 09:35:12 2024
 
 @author: amilighe
 
@@ -8,7 +8,7 @@ The code should be stored in the same folder as the gather sheet. The output
 will also be in the same folder.
 
 Notes on the creation of the template:
-    - Authority files should be in teh format:
+    - Authority files should be in the format:
             Name=role=altrender|Name=role=altreder
       with no extra spaces.
       The authority file sheet's name is hard-coded in the code.
@@ -123,13 +123,44 @@ def date_normal(row, arg):
 
 
 def pcontent(row, arg):
+    global tid_num
     content = []
+    lists = E.list()
     if row[arg].value:
-        lines = row[arg].value.replace("</p>", "").split("<p>")
-        for line in lines:
-            if line:
-                p = E.p(line, tid(row, arg))
-                content.append(p)
+        list_content = []
+        paragraphs = row[arg].value.split("</p>")
+        for chunk in paragraphs:
+            lines = chunk.split("</item>")
+            for line in lines:
+                line = line.strip()
+                if line:
+                    tid_label = tid(row, arg)
+                    if line.find('<emph render="italic">') != -1:
+                        top = line.split('<emph render="italic">')[0]
+                        emph_all = line.split(
+                            '<emph render="italic">')[1]
+                        emph = emph_all.split('</emph>')[0]
+                        bottom = line.split("</emph>")[1]
+                        emph_tid = shelfmark_modified+"_"+str(tid_num)
+                        tid_num += 1
+                        line = top + '<ead:emph render="italic" tid="' + emph_tid + '">' + emph + '</ead:emph>' + bottom
+                    line = line.replace("<list>", "").replace(
+                        "</list>", "")
+                    if line.startswith("<item>"):
+                        line = line.replace("<item>", "")
+                        list_content.append(line)
+                        line_content = E.item(line, tid_label)
+                        lists.append(line_content)
+                        content.append(lists)
+                    elif list_content == []:
+                        line = line.replace("<p>", "")
+                        top_p = E.p(line, tid_label)
+                        content.append(top_p)
+                    else:
+                        line = line.replace("<p>", "")
+                        bttm_p = E.p(line,
+                                     tid_label)
+                        content.append(bttm_p)
     else:
         p = E.p()
         content.append(p)
@@ -165,10 +196,10 @@ def authority_files(row, arg, auth_lookup):
             subject = attributes[0]
             role_type = "not_allocated"
             altrender_type = "not_allocated"
-            if len(attributes) > 1 and attributes[1]:
-                role_type = attributes[1]
-            if len(attributes) > 2:
-                altrender_type = attributes[2]
+            if len(attributes) > 3 and attributes[3]:
+                role_type = attributes[3]
+            if len(attributes) > 4 and attributes[4]:
+                altrender_type = attributes[4]
             element_dict = {rel_persons_clmn: E.persname,
                             rel_fams_clmn: E.famname,
                             rel_corp_bds_clmn: E.corpname,
@@ -376,50 +407,9 @@ for shelfmark_modified in shelfmarks:
             phystech.append(p)
         archdesc.append(phystech)
 
-        # This section allows for bullet points in the scope and content
         scopecontent = E.scopecontent()
-        lists = E.list()
-        if row[scope_content_clmn].value:
-            if row[scope_content_clmn].value.find("<list>") != -1:
-                list_content = []
-                paragraphs = row[scope_content_clmn].value.split("</p>")
-                for chunk in paragraphs:
-                    lines = chunk.split("</item>")
-                    for line in lines:
-                        line = line.strip()
-                        if line:
-                            tid_label = tid(row, scope_content_clmn)
-                            if line.find('<emph render="italic">') != -1:
-                                top = line.split('<emph render="italic">')[0]
-                                emph_all = line.split(
-                                    '<emph render="italic">')[1]
-                                emph = emph_all.split('</emph>')[0]
-                                bottom = line.split("</emph>")[1]
-                                emph_tid = shelfmark_modified+"_"+str(tid_num)
-                                tid_num += 1
-                                line = top + '<ead:emph render="italic" tid="'
-                                + emph_tid + '">' + emph + '</ead:emph>'
-                                + bottom
-                            line = line.replace("<list>", "").replace(
-                                "</list>", "")
-                            if line.startswith("<item>"):
-                                line = line.replace("<item>", "")
-                                list_content.append(line)
-                                line_content = E.item(line, tid_label)
-                                lists.append(line_content)
-                                scopecontent.append(lists)
-                            elif list_content == []:
-                                line = line.replace("<p>", "")
-                                top_p = E.p(line, tid_label)
-                                scopecontent.append(top_p)
-                            else:
-                                line = line.replace("<p>", "")
-                                bttm_p = E.p(line,
-                                             tid_label)
-                                scopecontent.append(bttm_p)
-        else:
-            for p in pcontent(row, scope_content_clmn):
-                scopecontent.append(p)
+        for p in pcontent(row, scope_content_clmn):
+            scopecontent.append(p)
         archdesc.append(scopecontent)
 
         userestrict = E.userestrict()  # Empty node
