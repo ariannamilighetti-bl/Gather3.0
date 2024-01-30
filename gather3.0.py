@@ -1,5 +1,5 @@
 """
-Created on Mon Jan 29 09:35:12 2024
+Created on Tue Jan 30 13:20:01 2024
 
 @author: amilighe
 
@@ -62,6 +62,10 @@ rel_fams_clmn = 32
 rel_corp_bds_clmn = 33
 rel_places_clmn = 34
 rel_subject_clmn = 35
+coordinates_clmn = 38
+scale_clmn = 39
+scale_des_clmn = 40
+orientation_clmn = 42
 legal_sts_clmn = 43
 mat_type_clmn = 50
 # Authority files document
@@ -368,6 +372,25 @@ for shelfmark_modified in shelfmarks:
 
         extent = E.extent(content(row, extent_clmn), tid(row, extent_clmn))
         physdesc.append(extent)
+# Map details generated here
+        if row[mat_type_clmn].value == 'Maps and Plans':
+            materialspec = E.materialspec(content(row, scale_clmn),
+                                          {'type': "scale"},
+                                          tid(row, scale_clmn))
+            did.append(materialspec)
+            materialspec = E.materialspec(content(row, scale_des_clmn),
+                                          {'type': "scale designator"},
+                                          tid(row, scale_des_clmn))
+            did.append(materialspec)
+            materialspec = E.materialspec(content(row, coordinates_clmn),
+                                          {'type': "coordinates"},
+                                          {'label': "decimal"},
+                                          tid(row, coordinates_clmn))
+            did.append(materialspec)
+            materialspec = E.materialspec(content(row, orientation_clmn),
+                                          {'type': "orientation"},
+                                          tid(row, orientation_clmn))
+            did.append(materialspec)
 
         accessrestrict = E.accessrestrict()
         for p in pcontent(row, access_cond_clmn):
