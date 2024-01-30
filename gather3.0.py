@@ -1,5 +1,5 @@
 """
-Created on Tue Jan 30 13:20:01 2024
+Created on Mon Jan 29 09:35:12 2024
 
 @author: amilighe
 
@@ -374,23 +374,24 @@ for shelfmark_modified in shelfmarks:
         physdesc.append(extent)
 # Map details generated here
         if row[mat_type_clmn].value == 'Maps and Plans':
-            materialspec = E.materialspec(content(row, scale_clmn),
-                                          {'type': "scale"},
-                                          tid(row, scale_clmn))
-            did.append(materialspec)
-            materialspec = E.materialspec(content(row, scale_des_clmn),
-                                          {'type': "scale designator"},
-                                          tid(row, scale_des_clmn))
-            did.append(materialspec)
-            materialspec = E.materialspec(content(row, coordinates_clmn),
-                                          {'type': "coordinates"},
-                                          {'label': "decimal"},
-                                          tid(row, coordinates_clmn))
-            did.append(materialspec)
-            materialspec = E.materialspec(content(row, orientation_clmn),
-                                          {'type': "orientation"},
-                                          tid(row, orientation_clmn))
-            did.append(materialspec)
+            if row[scope_content_clmn].value:
+                materialspec = E.materialspec(content(row, scale_clmn),
+                                              {'type': "scale"},
+                                              tid(row, scale_clmn))
+                did.append(materialspec)
+                materialspec = E.materialspec(content(row, scale_des_clmn),
+                                              {'type': "scale designator"},
+                                              tid(row, scale_des_clmn))
+                did.append(materialspec)
+                materialspec = E.materialspec(content(row, coordinates_clmn),
+                                              {'type': "coordinates"},
+                                              {'label': "decimal"},
+                                              tid(row, coordinates_clmn))
+                did.append(materialspec)
+                materialspec = E.materialspec(content(row, orientation_clmn),
+                                              {'type': "orientation"},
+                                              tid(row, orientation_clmn))
+                did.append(materialspec)
 
         accessrestrict = E.accessrestrict()
         for p in pcontent(row, access_cond_clmn):
