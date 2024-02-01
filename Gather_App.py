@@ -72,9 +72,11 @@ def start_record(rec_num):
     return {"StartRecord": rec_num}
 
 
-def tid(row, arg, shelfmark_modified, tid_num):
+def tid(row, arg, shelfmark_modified, row_num):
     # the tid_num should grow within the xml across child records
-    # global tid_num
+    global tid_num
+    if row_num == 0:
+        tid_num = 1
     if row[arg].value:
         tid_full = shelfmark_modified+"_"+str(tid_num)
         tid_num = tid_num+1
@@ -112,8 +114,8 @@ def date_normal(row, arg):
     return {"normal": date}
 
 
-def pcontent(row, arg, E, shelfmark_modified, tid_num):
-    # global tid_num
+def pcontent(row, arg, E, shelfmark_modified, row_num):
+    global tid_num
     content = []
     lists = E.list()
     if row[arg].value:
@@ -124,7 +126,7 @@ def pcontent(row, arg, E, shelfmark_modified, tid_num):
             for line in lines:
                 line = line.strip()
                 if line:
-                    tid_label = tid(row, arg, shelfmark_modified, tid_num)
+                    tid_label = tid(row, arg, shelfmark_modified, row_num)
                     if line.find('<emph render="italic">') != -1:
                         top = line.split('<emph render="italic">')[0]
                         emph_all = line.split(
@@ -177,7 +179,7 @@ def auth_dets(arg, label):
         return {label: arg}
 
 
-def authority_files(row, arg, auth_lookup, E, shelfmark_modified, tid_num):
+def authority_files(row, arg, auth_lookup, E, shelfmark_modified, row_num):
     if row[arg].value:
         lines = row[arg].value.split("|")
         full_text = []
@@ -202,7 +204,7 @@ def authority_files(row, arg, auth_lookup, E, shelfmark_modified, tid_num):
                 auth_dets(role_type, "role"),
                 {"source": "IAMS"},
                 auth_dets(altrender_type, "altrender"),
-                tid(row, arg, shelfmark_modified, tid_num))
+                tid(row, arg, shelfmark_modified, row_num))
 
             full_text.append(text)
         return full_text
@@ -226,15 +228,14 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
     # wb_name = wb_input + '.xlsx'
     wb = load_workbook(IAMS_filename, read_only=True)
     shelfmarks = wb.sheetnames
-    print(shelfmarks)
+
     for shelfmark_modified in shelfmarks:
-        global tid_num
+        # global tid_num
         rec_num = 1
-        tid_num = 1
-        row_num = 1
+        # tid_num = 1
+        row_num = 0
         ws = wb[shelfmark_modified]
         header_row = get_header(ws)
-        print("Got here"+shelfmark_modified)
         E = ElementMaker(namespace="urn:isbn:1-931666-22-9",
                          nsmap={'ead': "urn:isbn:1-931666-22-9",
                                 'xlink': "http://www.w3.org/1999/xlink",
@@ -250,15 +251,15 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 f"New record starts here {row[reference_clmn].value}")
             full_ead.append(comment)
             shelfmark = str(row[reference_clmn].value)
-            print(shelfmark)
 
             # header
             eadheader = E.eadheader(start_record(str(rec_num)))
             ead.append(eadheader)
 
             eadid = E.eadid(str(shelfmark), tid(row, reference_clmn,
-                                                shelfmark_modified, tid_num))
+                                                shelfmark_modified, row_num))
             eadheader.append(eadid)
+            row_num += 1
 
             filedesc = E.filedesc()  # wrapper node, should not have info
             eadheader.append(filedesc)
@@ -279,12 +280,12 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                                        .strftime("%Y-%m-%dT%H:%M:%S")),
                                    {"type": "exported"},
                                    tid(row, reference_clmn, shelfmark_modified,
-                                       tid_num))
+                                       row_num))
             creation.append(date_exported)
 
             date_modified = E.date(str(wb.properties.modified.strftime(
                 "%Y-%m-%dT%H:%M:%S")), {"type": "modified"},
-                tid(row, reference_clmn, shelfmark_modified, tid_num))
+                tid(row, reference_clmn, shelfmark_modified, row_num))
             creation.append(date_modified)
 
             langusage = E.langusage()  # not used in IAMS material
@@ -296,7 +297,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                                   labels(row, descr_scriptcode_clmn,
                                          "scriptcode"),
                                   tid(row, descr_lang_clmn,
-                                      shelfmark_modified, tid_num))
+                                      shelfmark_modified, row_num))
             langusage.append(language)
 
             # archdesc
@@ -309,13 +310,13 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
             # British Library: Indian Office Records
             repository = E.repository(
                 row[repository_clmn].value + ": " + row[coll_area_clmn].value,
-                tid(row, repository_clmn, shelfmark_modified, tid_num))
+                tid(row, repository_clmn, shelfmark_modified, row_num))
             did.append(repository)
 
             unitid = E.unitid(shelfmark, {"label": "IAMS_label_NA"},
                               {"identifier": "ark_identifier"},
                               tid(row, reference_clmn, shelfmark_modified,
-                                  tid_num))
+                                  row_num))
             # These are the IAMS identifiers (ark and number)
             did.append(unitid)
 
@@ -327,7 +328,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
             # Item title
             title = E.title(content(row, title_clmn), tid(row, title_clmn,
                                                           shelfmark_modified,
-                                                          tid_num))
+                                                          row_num))
             unittitle.append(title)
 
             if row[ext_ref_clmn].value:
@@ -335,7 +336,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                                         header_label(header_row,
                                                      ext_ref_clmn, "label"),
                                         tid(row, ext_ref_clmn,
-                                            shelfmark_modified, tid_num))
+                                            shelfmark_modified, row_num))
             else:
                 unittitle = E.unittitle({"label": "Former external reference"})
             did.append(unittitle)  # Former external reference
@@ -346,7 +347,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
             unitdate = E.unitdate(content(row, date_rng_clmn), {
                 "datechar": "Creation"}, labels(row, calendar_clmn, "calendar"),
                 labels(row, era_clmn, "era"), date_normal(row, date_rng_clmn),
-                tid(row, date_rng_clmn, shelfmark_modified, tid_num))
+                tid(row, date_rng_clmn, shelfmark_modified, row_num))
             did.append(unitdate)  # Date of the material
 
             # langmaterial = E.langmaterial()  # This is language
@@ -367,7 +368,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                     language = E.language(lang,
                                           {code_labels[code_label_index]: c},
                                           tid(row, r[0], shelfmark_modified,
-                                              tid_num))
+                                              row_num))
                     langmaterial.append(language)
                 code_label_index += 1
 
@@ -376,7 +377,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
 
             extent = E.extent(content(row, extent_clmn),
                               tid(row, extent_clmn, shelfmark_modified,
-                                  tid_num))
+                                  row_num))
             physdesc.append(extent)
     # Map details generated here
             if row[mat_type_clmn].value == 'Maps and Plans':
@@ -385,13 +386,13 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                                                   {'type': "scale"},
                                                   tid(row, scale_clmn,
                                                       shelfmark_modified,
-                                                      tid_num))
+                                                      row_num))
                     did.append(materialspec)
                     materialspec = E.materialspec(content(row, scale_des_clmn),
                                                   {'type': "scale designator"},
                                                   tid(row, scale_des_clmn,
                                                       shelfmark_modified,
-                                                      tid_num))
+                                                      row_num))
                     did.append(materialspec)
                     materialspec = E.materialspec(content(row,
                                                           coordinates_clmn),
@@ -399,19 +400,19 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                                                   {'label': "decimal"},
                                                   tid(row, coordinates_clmn,
                                                       shelfmark_modified,
-                                                      tid_num))
+                                                      row_num))
                     did.append(materialspec)
                     materialspec = E.materialspec(content(row,
                                                           orientation_clmn),
                                                   {'type': "orientation"},
                                                   tid(row, orientation_clmn,
                                                       shelfmark_modified,
-                                                      tid_num))
+                                                      row_num))
                     did.append(materialspec)
 
             accessrestrict = E.accessrestrict()
             for p in pcontent(row, access_cond_clmn, E, shelfmark_modified,
-                              tid_num):
+                              row_num):
                 accessrestrict.append(p)
             archdesc.append(accessrestrict)
 
@@ -421,7 +422,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
 
             legalstatus = E.legalstatus(content(row, legal_sts_clmn),
                                         tid(row, legal_sts_clmn,
-                                            shelfmark_modified, tid_num))
+                                            shelfmark_modified, row_num))
             accessrestrict.append(legalstatus)
 
             accruals = E.accruals()  # Empty node
@@ -441,7 +442,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
 
             arrangement = E.arrangement()
             for p in pcontent(row, arrangement_clmn, E, shelfmark_modified,
-                              tid_num):
+                              row_num):
                 arrangement.append(p)
             archdesc.append(arrangement)
 
@@ -449,13 +450,13 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
             if row_num == 1 or row[mat_type_clmn].value != "Archives and Manuscripts":
                 phystech = E.phystech()
                 for p in pcontent(row, phys_char_clmn, E, shelfmark_modified,
-                                  tid_num):
+                                  row_num):
                     phystech.append(p)
                 archdesc.append(phystech)
 
             scopecontent = E.scopecontent()
             for p in pcontent(row, scope_content_clmn, E, shelfmark_modified,
-                              tid_num):
+                              row_num):
                 scopecontent.append(p)
             archdesc.append(scopecontent)
 
@@ -472,31 +473,30 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
             controlaccess = E.controlaccess()
             genreform = E.genreform(
                 content(row, mat_type_clmn), {"source": "IAMS"},
-                tid(row, mat_type_clmn, shelfmark_modified, tid_num))
+                tid(row, mat_type_clmn, shelfmark_modified, row_num))
             controlaccess.append(genreform)
 
             # Authority files processing starts here:
             for arg in range(rel_persons_clmn, rel_subject_clmn+1, 1):
                 for af in authority_files(row, arg, auth_lookup, E,
-                                          shelfmark_modified, tid_num):
+                                          shelfmark_modified, row_num):
                     controlaccess.append(af)
             archdesc.append(controlaccess)
             # End of authority files
 
             note = E.note({"type": "project/collection"})
             for p in pcontent(row, coll_area_clmn, E, shelfmark_modified,
-                              tid_num):
+                              row_num):
                 note.append(p)
             controlaccess.append(note)
 
             note = E.note({"type": "project/collection"})
             for p in pcontent(row, collection_clmn, E, shelfmark_modified,
-                              tid_num):
+                              row_num):
                 note.append(p)
             controlaccess.append(note)
 
             rec_num += 1
-            row_num += 1
 
 # This puts together the two parts of each child's tree (header+description)
 # This will append as many children as there are in the Excel tab
@@ -514,7 +514,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
     wb.close()
     auth_file_wb.close()
     print('Gather complete!')
-    status = "complete!"
+    status = "Complete!"
     complete_label.config(text=status)
 
 
