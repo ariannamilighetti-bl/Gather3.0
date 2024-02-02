@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jan 30 14:10:39 2024
+Created on Fri Feb 02 15:57:39 2024
 
 @author: amilighe
 """
@@ -212,7 +212,7 @@ def authority_files(row, arg, auth_lookup, E, shelfmark_modified, row_num):
         return ""
 
 
-def template_verification(ws):
+def template_verification(ws,sh_complete_label):
     validation_check = 0
     row_num = 0
     for row in ws.iter_rows(min_row=2):
@@ -236,13 +236,17 @@ def template_verification(ws):
                                                                         if row[scope_content_clmn].value:
                                                                             if row[scope_content_clmn].value.find("<p>")!= -1:
                                                                                 validation_check += 1
+                                                                                sh_complete_label.configure(text="Missing paragraph structure in free text",  bg="#cc0000", fg="white")
                                                                         else:
                                                                             validation_check += 1
+        else:
+            sh_complete_label.configure(text="Missing required field",
+                                        bg="#cc0000", fg="white")
     if validation_check == row_num:
         validated = True
     else:
         validated = False
-    return validated
+    return validated    
 
 
 # Full Gather process
@@ -284,9 +288,10 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
         sh_complete_label = tk.Label(master=run_frame)
         sh_complete_label.grid(row=1+shm_num, column=2, padx=5, pady=5,
                                sticky="nsew")
-        validation = template_verification(ws)
-        print(validation)
-        if validation is True:
+        complete_label = tk.Label(master=app, font=("calibri", 14, "bold"),
+                                  anchor="e")
+        complete_label.grid(row=5, column=0, padx=5, pady=5, sticky="nsew")
+        if template_verification(ws, sh_complete_label) is True:
             sh_verif_lbl.configure(text="Verified", bg="green", fg="white")
         # This part creates the tree for each child shelfmark.
             for row in ws.iter_rows(min_row=2, values_only=False):
@@ -559,17 +564,13 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 f.write(etree.tostring(
                     full_ead, encoding="utf-8", xml_declaration=True,
                     pretty_print=True))
-            sh_complete_label.config(text="Complete")
-            print(shelfmark + ' complete \n')
+            sh_complete_label.config(text="Complete", bg="green", fg="white")
         else:
             sh_verif_lbl.configure(text="Not recognised", bg="#cc0000",
                                    fg="white")
-            sh_complete_label.config(text="Could not complete", bg="#cc0000",
-                                     fg="white")
     wb.close()
     auth_file_wb.close()
-    print('Gather complete!')
-    status = "Complete!"
+    status = "Process complete"
     complete_label.config(text=status)
 
 
@@ -599,6 +600,7 @@ def askDirectory(event=None):
 
 app = tk.Tk()
 app.title("Gather Renewed")
+app.option_add("*font", "calibri 10")
 
 title_lbl = tk.Label(master=app, text="Gather Renewed", bg="#eeeeee",
                      fg="black", anchor="w", font=("calibri", 18, "bold"))
