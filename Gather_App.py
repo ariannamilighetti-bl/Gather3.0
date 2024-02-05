@@ -61,7 +61,7 @@ auth_ark_id_clmn = 9
 # Gather definitions
 # Definitions used to create the nodes:
 
-
+    
 def get_header(ws):
     header = []
     for cell in ws[1]:
@@ -160,6 +160,15 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
     return content
 
 
+def current_wordcount(row):
+    wc = 0
+    for i in range(0, len(row), 1):
+        if row[i].value:
+            par = str(row[i].value).replace("><", " ")
+            wc += len(par.split())
+    return wc
+
+
 # Authority Files processing definitions
 def gen_auth_lookup(auth_ws, auth_name_clmn, auth_ark_id_clmn):
     auth_lookup = {}
@@ -213,36 +222,106 @@ def authority_files(row, arg, auth_lookup, E, shelfmark_modified, row_num):
         return ""
 
 
+# IAMS template validation definition
 def template_verification(ws, sh_complete_label):
     validation_check = 0
     row_num = 0
     for row in ws.iter_rows(min_row=2):
         row_num += 1
-        if row[repository_clmn].value:
-            if row[coll_area_clmn].value:
-                if row[collection_clmn].value:
-                    if row[level_clmn].value:
-                        if row[reference_clmn].value:
-                            if row[title_clmn].value:
-                                if row[date_rng_clmn].value:
-                                    if row[era_clmn].value:
-                                        if row[calendar_clmn].value:
-                                            if row[access_cond_clmn].value:
-                                                if row[mat_language_clmn].value:
-                                                    if row[mat_langcode_clmn].value:
-                                                        if row[mat_script_clmn].value:
-                                                            if row[mat_scriptcode_clmn].value:
-                                                                if row[descr_lang_clmn].value:
-                                                                    if row[mat_type_clmn].value:
-                                                                        if row[scope_content_clmn].value:
-                                                                            if row[scope_content_clmn].value.find("<p>")!= -1:
+        # print(len(row))
+        if len(row) == 52:
+            if row[repository_clmn].value:
+                if row[coll_area_clmn].value:
+                    if row[collection_clmn].value:
+                        if row[level_clmn].value:
+                            if row[reference_clmn].value:
+                                if row[title_clmn].value:
+                                    if row[date_rng_clmn].value:
+                                        if row[era_clmn].value:
+                                            if row[calendar_clmn].value:
+                                                if row[access_cond_clmn].value:
+                                                    if row[mat_language_clmn].value:
+                                                        if row[mat_langcode_clmn].value:
+                                                            if row[mat_script_clmn].value:
+                                                                if row[mat_scriptcode_clmn].value:
+                                                                    if row[descr_lang_clmn].value:
+                                                                        if row[mat_type_clmn].value:
+                                                                            if row[scope_content_clmn].value:
+                                                                                if row[scope_content_clmn].value.find("<p>")!= -1:
+                                                                                    validation_check += 1
+                                                                                    sh_complete_label.configure(
+                                                                                        text="Missing paragraph structure in free text",
+                                                                                        bg="#cc0000", fg="white")
+                                                                            else:
                                                                                 validation_check += 1
-                                                                                sh_complete_label.configure(text="Missing paragraph structure in free text",  bg="#cc0000", fg="white")
                                                                         else:
-                                                                            validation_check += 1
-        else:
-            sh_complete_label.configure(text="Missing required field",
+                                                                            sh_complete_label.configure(
+                                                                                text="Missing material type",
+                                                                                bg="#cc0000", fg="white")
+                                                                    else:
+                                                                        sh_complete_label.configure(
+                                                                            text="Missing description language",
+                                                                            bg="#cc0000", fg="white")
+                                                                else:
+                                                                    sh_complete_label.configure(
+                                                                        text="Missing material script code",
+                                                                        bg="#cc0000", fg="white")
+                                                            else:
+                                                                sh_complete_label.configure(
+                                                                    text="Missing material script",
+                                                                    bg="#cc0000", fg="white")
+                                                        else:
+                                                            sh_complete_label.configure(
+                                                                text="Missing material langugage code",
+                                                                bg="#cc0000", fg="white")
+                                                    else:
+                                                        sh_complete_label.configure(
+                                                            text="Missing material language",
+                                                            bg="#cc0000", fg="white")
+                                                else:
+                                                    sh_complete_label.configure(
+                                                        text="Missing access conditions",
+                                                        bg="#cc0000", fg="white")
+                                            else:
+                                                sh_complete_label.configure(
+                                                    text="Missing calendar",
+                                                    bg="#cc0000", fg="white")
+                                        else:
+                                            sh_complete_label.configure(
+                                                text="Missing era",
+                                                bg="#cc0000", fg="white")
+                                    else:
+                                        sh_complete_label.configure(
+                                            text="Missing date range",
+                                            bg="#cc0000", fg="white")
+                                else:
+                                    sh_complete_label.configure(
+                                        text="Missing title",
                                         bg="#cc0000", fg="white")
+                            else:
+                                sh_complete_label.configure(
+                                    text="Missing shelfmark reference",
+                                    bg="#cc0000", fg="white")
+                        else:
+                            sh_complete_label.configure(
+                                text="Missing record level",
+                                bg="#cc0000", fg="white")
+                    else:
+                        sh_complete_label.configure(
+                            text="Missing collection field",
+                            bg="#cc0000", fg="white")
+                else:
+                    sh_complete_label.configure(
+                        text="Missing collection area field",
+                        bg="#cc0000", fg="white")
+            else:
+                sh_complete_label.configure(
+                    text="Missing repository field",
+                    bg="#cc0000", fg="white")
+        else:
+            sh_complete_label.configure(
+                text="Not enough fields in template",
+                bg="#cc0000", fg="white")
     if validation_check == row_num:
         validated = True
     else:
@@ -252,18 +331,11 @@ def template_verification(ws, sh_complete_label):
 
 # Full Gather process
 def QatarGather(IAMS_filename, Auth_filename, end_directory):
-    # The actual code starts here.
-    # This part defines where the authority files details are held.
-    # auth_file_name = 'TB_Authorities.xlsx'
+
     auth_file_wb = load_workbook(Auth_filename, read_only=True)
     auth_ws = auth_file_wb["in"]
     auth_lookup = gen_auth_lookup(auth_ws, auth_name_clmn, auth_ark_id_clmn)
 
-    # This selects the spreadsheet to gather
-    # One tab each shelfmark to gather.
-    # wb_input = input('Please write the name of the spreadsheet to Gather.
-    # Omit ".xlsx": ')
-    # wb_name = wb_input + '.xlsx'
     wb = load_workbook(IAMS_filename, read_only=True)
     shelfmarks = wb.sheetnames
     shm_num = 0
@@ -272,6 +344,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
         shm_num += 1
         rec_num = 1
         row_num = 0
+        wordcount = 0
         ws = wb[shelfmark_modified]
         header_row = get_header(ws)
         E = ElementMaker(namespace="urn:isbn:1-931666-22-9",
@@ -292,6 +365,9 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
         complete_label = tk.Label(master=app, font=("calibri", 14, "bold"),
                                   anchor="e")
         complete_label.grid(row=5, column=0, padx=5, pady=5, sticky="nsew")
+        sh_wordcount = tk.Label(master=run_frame)
+        sh_wordcount.grid(row=1+shm_num, column=3, padx=5, pady=5,
+                          sticky="nsew")
         if template_verification(ws, sh_complete_label) is True:
             sh_verif_lbl.configure(text="Verified", bg="green", fg="white")
         # This part creates the tree for each child shelfmark.
@@ -300,6 +376,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 comment = Comment(
                     f"New record starts here {row[reference_clmn].value}")
                 full_ead.append(comment)
+                wordcount += current_wordcount(row)
                 shelfmark = str(row[reference_clmn].value)
 
                 # header
@@ -559,7 +636,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 full_ead.append(eadheader)
                 full_ead.append(archdesc)
 
-        # This part writes out the XML file
+    # This part writes out the XML file
             with open(end_directory+"/"+shelfmark_modified+"_"+str(
                     datetime.now().strftime("%Y%m%d_%H%M%S")
                     )+'.xml', 'wb') as f:
@@ -567,6 +644,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                     full_ead, encoding="utf-8", xml_declaration=True,
                     pretty_print=True))
             sh_complete_label.config(text="Complete", bg="green", fg="white")
+            sh_wordcount.config(text=wordcount)
         else:
             sh_verif_lbl.configure(text="Not recognised", bg="#cc0000",
                                    fg="white")
@@ -576,7 +654,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
     complete_label.config(text=status)
 
 
-# Editor Definitions
+# App Editor Definitions
 def UploadIAMS(event=None):
     global IAMS_filename
     IAMS_filename = filedialog.askopenfilename(
@@ -601,6 +679,8 @@ def askDirectory(event=None):
 
 
 app = tk.Tk()
+photo = tk.PhotoImage(file='Gather_icon3.png')
+app.wm_iconphoto(False, photo)
 app.title("Gather Renewed")
 app.option_add("*font", "calibri 10")
 
@@ -645,8 +725,8 @@ run_verification = tk.Label(master=run_frame, text="IAMS Template Validation",
                             bg="#eeeeee", fg="black")
 run_status = tk.Label(master=run_frame, text="Status", bg="#eeeeee",
                       fg="black")
-
-# complete_label = tk.Label(master=app, text=status)
+run_wordcount = tk.Label(master=run_frame, text="Wordcount", bg="#eeeeee",
+                         fg="black")
 
 title_lbl.grid(column=0, row=0, sticky="nsew", padx=5)
 instr_lbl.grid(column=0, row=1, sticky="nsew", padx=5)
@@ -675,6 +755,7 @@ run_frame.grid(column=0, row=4, sticky="nsew", padx=5, pady=5)
 run_shmark.grid(column=0, row=0, sticky="nsew", padx=5, pady=5)
 run_verification.grid(column=1, row=0, sticky="nsew", padx=5, pady=5)
 run_status.grid(column=2, row=0, sticky="nsew", padx=5, pady=5)
+run_wordcount.grid(column=3, row=0, sticky="nsew", padx=5, pady=5)
 
 app.columnconfigure(0, weight=1)
 selection_frm.columnconfigure(0, weight=1)
