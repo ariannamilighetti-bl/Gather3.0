@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Feb 02 15:57:39 2024
+Created on Tue Jan 30 14:10:39 2024
 
 @author: amilighe
 """
@@ -53,6 +53,7 @@ scale_des_clmn = 39
 orientation_clmn = 41
 legal_sts_clmn = 42
 mat_type_clmn = 49
+ark_id_clmn = 51
 # Authority files document
 auth_name_clmn = 36
 auth_ark_id_clmn = 9
@@ -212,7 +213,7 @@ def authority_files(row, arg, auth_lookup, E, shelfmark_modified, row_num):
         return ""
 
 
-def template_verification(ws,sh_complete_label):
+def template_verification(ws, sh_complete_label):
     validation_check = 0
     row_num = 0
     for row in ws.iter_rows(min_row=2):
@@ -246,7 +247,7 @@ def template_verification(ws,sh_complete_label):
         validated = True
     else:
         validated = False
-    return validated    
+    return validated
 
 
 # Full Gather process
@@ -366,7 +367,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 did.append(repository)
 
                 unitid = E.unitid(shelfmark, {"label": "IAMS_label_NA"},
-                                  {"identifier": "ark_identifier"},
+                                  labels(row, ark_id_clmn, "identifier"),
                                   tid(row, reference_clmn, shelfmark_modified,
                                       row_num))
                 # These are the IAMS identifiers (ark and number)
@@ -409,7 +410,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 # langmaterial = E.langmaterial()  # This is language
                 # did.append(langmaterial)
 
-                # This allows for multiple languages and lang codes separated by |
+                # This allows for multiple langs and langcodes separated by |
                 # (mat_language_clmn, mat_langcode_clmn) for language
                 # (mat_script_clmn, mat_scriptcode_clmn) for script
                 code_label_index = 0
@@ -499,7 +500,8 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 archdesc.append(arrangement)
 
         # This allows to skip the node if item is part of a bigger volume
-                if row_num == 1 or row[mat_type_clmn].value != "Archives and Manuscripts":
+                if row_num == 1 or row[
+                        mat_type_clmn].value != "Archives and Manuscripts":
                     phystech = E.phystech()
                     for p in pcontent(
                             row, phys_char_clmn, E, shelfmark_modified,
