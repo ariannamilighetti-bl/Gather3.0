@@ -677,7 +677,7 @@ def askDirectory(event=None):
     end_directory_label.delete(0, END)
     end_directory_label.insert(0, end_directory)
 
-
+'''The following part creates the visual app features'''
 app = tk.Tk()
 photo = tk.PhotoImage(file='Gather_icon3.png')
 app.wm_iconphoto(False, photo)
