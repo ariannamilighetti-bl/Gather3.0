@@ -136,14 +136,22 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
                 if line:
                     tid_label = tid(row, arg, shelfmark_modified, row_num)
                     if line.find('<emph render="italic">') != -1:
-                        top = line.split('<emph render="italic">')[0]
-                        emph_all = line.split(
-                            '<emph render="italic">')[1]
-                        emph = emph_all.split('</emph>')[0]
-                        bottom = line.split("</emph>")[1]
-                        emph_tid = shelfmark_modified+"_"+str(tid_num)
-                        tid_num += 1
-                        line = top + ' <ead:emph render="italic" tid="' + emph_tid + '">' + emph + '</ead:emph>' + bottom
+                        sections = line.split(' <emph')
+                        emphatic_line = ""
+                        for section in sections:
+                            print(section)
+                            if section.find('render="italic">') != -1:
+                                top = section.split('render="italic">')[0]
+                                emph_all = section.split('render="italic">')[1]
+                                emph = emph_all.split('</emph>')[0]
+                                print(emph)
+                                bottom = section.split("</emph>")[1]
+                                emph_tid = shelfmark_modified+"_"+str(tid_num)
+                                tid_num += 1
+                                emphatic_line += top + '<ead:emph render="italic" tid="' + emph_tid + '">' + emph + '</ead:emph>' + bottom
+                            else:
+                                emphatic_line += section
+                            line = emphatic_line
                     line = line.replace("<list>", "").replace("</list>", "")
                     if line.startswith("<item>"):
                         line = line.replace("<item>", "")
@@ -182,7 +190,7 @@ def title_content(row, arg, E, shelfmark_modified, row_num):
             bottom = line.split("</emph>")[1]
             emph_tid = shelfmark_modified+"_"+str(tid_num)
             tid_num += 1
-            line = top + ' <ead:emph render="italic" tid="' + emph_tid + '">' + emph + '</ead:emph>' + bottom
+            line = top + '<ead:emph render="italic" tid="' + emph_tid + '">' + emph + '</ead:emph>' + bottom
             title_full = E.title(line, tid_label)
         else:
             title_full = E.title(line, tid_label)
