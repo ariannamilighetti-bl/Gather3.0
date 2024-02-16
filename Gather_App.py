@@ -168,6 +168,29 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
         content.append(p)
     return content
 
+def title_content(row, arg, E, shelfmark_modified, row_num):
+    '''Creates the p node of free text fields and bullet point logic'''
+    global tid_num
+    # content=[]
+    if row[arg].value:
+        tid_label = tid(row, arg, shelfmark_modified, row_num)
+        line = row[arg].value
+        if line.find('<emph render="italic">') != -1:
+            top = line.split('<emph render="italic">')[0]
+            emph_all = line.split('<emph render="italic">')[1]
+            emph = emph_all.split('</emph>')[0]
+            bottom = line.split("</emph>")[1]
+            emph_tid = shelfmark_modified+"_"+str(tid_num)
+            tid_num += 1
+            line = top + ' <ead:emph render="italic" tid="' + emph_tid + '">' + emph + '</ead:emph>' + bottom
+            title_full = E.title(line, tid_label)
+        else:
+            title_full = E.title(line, tid_label)
+        return title_full
+    else:
+        title_full = E.title()
+        return title_full
+
 
 def current_wordcount(row):
     '''Calculates the number of workds in the Excel row'''
@@ -216,7 +239,6 @@ def gen_auth_lookup(auth_ws):
         else:
             auth_file_attr.append("not_found")
         auth_lookup[reference] = auth_file_attr
-    print(auth_lookup)
     return auth_lookup
 
 
@@ -258,7 +280,6 @@ def template_verification(ws, sh_complete_label):
     row_num = 0
     for row in ws.iter_rows(min_row=2):
         row_num += 1
-        # print(len(row))
         if len(row) == 53:
             if row[repository_clmn].value:
                 if row[coll_area_clmn].value:
@@ -305,7 +326,7 @@ def template_verification(ws, sh_complete_label):
                                                                     bg="#cc0000", fg="white")
                                                         else:
                                                             sh_complete_label.configure(
-                                                                text="Missing material langugage code",
+                                                                text="Missing material language code",
                                                                 bg="#cc0000", fg="white")
                                                     else:
                                                         sh_complete_label.configure(
@@ -491,10 +512,10 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 did.append(unittitle)
 
                 # Item title
-                title = E.title(content(row, title_clmn),
-                                tid(row, title_clmn, shelfmark_modified,
-                                    row_num))
-                unittitle.append(title)
+                text_title = title_content(row, title_clmn, E, shelfmark_modified, row_num)
+                # title = E.title(title_content(row, title_clmn, E, shelfmark_modified, row_num), tid(row, title_clmn,
+                #                                shelfmark_modified, row_num))
+                unittitle.append(text_title)
 
                 if row[ext_ref_clmn].value:
                     unittitle = E.unittitle(content(
