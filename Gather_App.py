@@ -54,15 +54,15 @@ orientation_clmn = 41
 legal_sts_clmn = 42
 mat_type_clmn = 49
 ark_id_clmn = 51
-# Authority files document
-auth_name_clmn = 36
-auth_ark_id_clmn = 9
+iams_id_clmn = 52
+
 
 # Gather definitions
 # Definitions used to create the nodes:
 
-    
+
 def get_header(ws):
+    '''Returns the values of the header row'''
     header = []
     for cell in ws[1]:
         header.append(cell.value)
@@ -70,10 +70,12 @@ def get_header(ws):
 
 
 def start_record(rec_num):
+    '''Keeps count of how the record number in the file'''
     return {"StartRecord": rec_num}
 
 
 def tid(row, arg, shelfmark_modified, row_num):
+    '''Add the tid labels to the xml nodes'''
     # the tid_num should grow within the xml across child records
     global tid_num
     if row_num == 0:
@@ -87,6 +89,7 @@ def tid(row, arg, shelfmark_modified, row_num):
 
 
 def content(row, arg):
+    '''Adds the content of non-p nodes'''
     if row[arg].value:
         return str(row[arg].value)
     else:
@@ -94,16 +97,19 @@ def content(row, arg):
 
 
 def labels(row, arg, label):
+    '''Creates the labels of the xml nodes'''
     content = str(row[arg].value)
     return {label: content}
 
 
 def header_label(header_row, arg, label):
+    '''Returns the text of the column header'''
     label_title = header_row[arg]
     return {label: label_title}
 
 
 def date_normal(row, arg):
+    '''Returns the date field in the format start/end'''
     full_date = str(row[arg].value)
     if "-" in full_date:
         index = full_date.rfind("-")
@@ -116,6 +122,7 @@ def date_normal(row, arg):
 
 
 def pcontent(row, arg, E, shelfmark_modified, row_num):
+    '''Creates the p node of free text fields and bullet point logic'''
     global tid_num
     content = []
     lists = E.list()
@@ -136,9 +143,8 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
                         bottom = line.split("</emph>")[1]
                         emph_tid = shelfmark_modified+"_"+str(tid_num)
                         tid_num += 1
-                        line = top + '<ead:emph render="italic" tid="' + emph_tid + '">' + emph + '</ead:emph>' + bottom
-                    line = line.replace("<list>", "").replace(
-                        "</list>", "")
+                        line = top + ' <ead:emph render="italic" tid="' + emph_tid + '">' + emph + '</ead:emph>' + bottom
+                    line = line.replace("<list>", "").replace("</list>", "")
                     if line.startswith("<item>"):
                         line = line.replace("<item>", "")
                         list_content.append(line)
@@ -147,6 +153,8 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
                         content.append(lists)
                     elif list_content == []:
                         line = line.replace("<p>", "")
+                        if line == "India Office Records and Private Papers":
+                            line = "India Office Records"
                         top_p = E.p(line, tid_label)
                         content.append(top_p)
                     else:
@@ -154,6 +162,7 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
                         bttm_p = E.p(line,
                                      tid_label)
                         content.append(bttm_p)
+            
     else:
         p = E.p()
         content.append(p)
@@ -161,6 +170,7 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
 
 
 def current_wordcount(row):
+    '''Calculates the number of workds in the Excel row'''
     wc = 0
     for i in range(0, len(row), 1):
         if row[i].value:
@@ -170,66 +180,86 @@ def current_wordcount(row):
 
 
 # Authority Files processing definitions
-def gen_auth_lookup(auth_ws, auth_name_clmn, auth_ark_id_clmn):
+# Generate athority lookup
+def gen_auth_lookup(auth_ws):
+    '''Function looks at the Authority files sheet and creates a dictionary 
+        of authority files in the format:
+           auth_file_attr[0] = name
+           auth_file_attr[1] = Ark id
+           auth_file_attr[2] = role
+           auth_file_attr[3] = Altrender
+           auth_file_attr[4] = IAMS ID
+        returns a lookup to the row number in the file.'''
     auth_lookup = {}
-    for row_num, row in enumerate(auth_ws.iter_rows()):
-        auth_name = str(row[auth_name_clmn].value).strip().lower()
-        if row[auth_ark_id_clmn].value:
-            ark_id = row[auth_ark_id_clmn].value
+    reference = 1
+    for row_num, row in enumerate(auth_ws.iter_rows(min_row=2)):
+        reference += 1
+        auth_file_attr = []
+        if row[0].value:
+            auth_file_attr.append(row[0].value)
         else:
-            ark_id = "not_allocated"
-        auth_lookup[auth_name] = ark_id
+            auth_file_attr.append("not_found")
+        if row[1].value:
+            auth_file_attr.append(row[1].value)
+        else:
+            auth_file_attr.append("not_found")
+        if row[2].value:
+            auth_file_attr.append(row[2].value)
+        else:
+            auth_file_attr.append("not_found")
+        if row[3].value:
+            auth_file_attr.append(row[3].value)
+        else:
+            auth_file_attr.append("not_found")
+        if row[4].value:
+            auth_file_attr.append(row[4].value)
+        else:
+            auth_file_attr.append("not_found")
+        auth_lookup[reference] = auth_file_attr
+    print(auth_lookup)
     return auth_lookup
 
 
-def auth_dets(arg, label):
-    if arg == "not_allocated":
-        return {}
-    else:
-        return {label: arg}
-
-
+# Authority files process
 def authority_files(row, arg, auth_lookup, E, shelfmark_modified, row_num):
+    '''Takes the dictionry created in auth_lookup and separates each attribute
+        to create the full authority file row.'''
+    full_text = []
     if row[arg].value:
-        lines = row[arg].value.split("|")
-        full_text = []
+        lines = [""]
+        if str(row[arg].value).find("|") != -1 :
+            lines = row[arg].value.split("|")
+        else:
+            lines[0] = row[arg].value
         for line in lines:
-            attributes = line.split("=")
-            subject = attributes[0]
-            role_type = "not_allocated"
-            altrender_type = "not_allocated"
-            if len(attributes) > 3 and attributes[3]:
-                role_type = attributes[3]
-            if len(attributes) > 4 and attributes[4]:
-                altrender_type = attributes[4]
             element_dict = {rel_persons_clmn: E.persname,
                             rel_fams_clmn: E.famname,
                             rel_corp_bds_clmn: E.corpname,
                             rel_places_clmn: E.geogname,
                             rel_subject_clmn: E.subject}
-            text = element_dict[arg](
-                subject,
-                {"authfilenumber":
-                 auth_lookup.get(subject.strip().lower(), "not_found")},
-                auth_dets(role_type, "role"),
+            current_auth = auth_lookup.get(int(line))
+            text = element_dict[arg](current_auth[0],
+                {"authfilenumber": current_auth[1]},
+                {"role": current_auth[2]},
                 {"source": "IAMS"},
-                auth_dets(altrender_type, "altrender"),
+                {"altrender": current_auth[3]},
                 tid(row, arg, shelfmark_modified, row_num))
-
             full_text.append(text)
         return full_text
     else:
         return ""
+        
 
 
 # IAMS template validation definition
 def template_verification(ws, sh_complete_label):
+    '''Checks the well-formedness of the IAMS template'''
     validation_check = 0
     row_num = 0
     for row in ws.iter_rows(min_row=2):
         row_num += 1
         # print(len(row))
-        if len(row) == 52:
+        if len(row) == 53:
             if row[repository_clmn].value:
                 if row[coll_area_clmn].value:
                     if row[collection_clmn].value:
@@ -249,6 +279,9 @@ def template_verification(ws, sh_complete_label):
                                                                             if row[scope_content_clmn].value:
                                                                                 if row[scope_content_clmn].value.find("<p>")!= -1:
                                                                                     validation_check += 1
+                                                                                    sh_complete_label.configure(
+                                                                                        text="Unrecognised Error", bg="#cc0000", fg="white")
+                                                                                else:
                                                                                     sh_complete_label.configure(
                                                                                         text="Missing paragraph structure in free text",
                                                                                         bg="#cc0000", fg="white")
@@ -331,10 +364,10 @@ def template_verification(ws, sh_complete_label):
 
 # Full Gather process
 def QatarGather(IAMS_filename, Auth_filename, end_directory):
-
+    '''The main Qatar Gather code. This creates the full XML'''
     auth_file_wb = load_workbook(Auth_filename, read_only=True)
-    auth_ws = auth_file_wb["in"]
-    auth_lookup = gen_auth_lookup(auth_ws, auth_name_clmn, auth_ark_id_clmn)
+    auth_ws = auth_file_wb["Sheet1"]
+    auth_lookup = gen_auth_lookup(auth_ws)
 
     wb = load_workbook(IAMS_filename, read_only=True)
     shelfmarks = wb.sheetnames
@@ -350,7 +383,8 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
         E = ElementMaker(namespace="urn:isbn:1-931666-22-9",
                          nsmap={'ead': "urn:isbn:1-931666-22-9",
                                 'xlink': "http://www.w3.org/1999/xlink",
-                                'xsi': "http://www.w3.org/2001/XMLSchema-instance"
+                                'xsi':
+                                    "http://www.w3.org/2001/XMLSchema-instance"
                                 })
         full_ead = E.ead()
 
@@ -443,7 +477,8 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                     tid(row, repository_clmn, shelfmark_modified, row_num))
                 did.append(repository)
 
-                unitid = E.unitid(shelfmark, {"label": "IAMS_label_NA"},
+                unitid = E.unitid(shelfmark,
+                                  labels(row, iams_id_clmn, "label"),
                                   labels(row, ark_id_clmn, "identifier"),
                                   tid(row, reference_clmn, shelfmark_modified,
                                       row_num))
@@ -610,6 +645,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 controlaccess.append(genreform)
 
                 # Authority files processing starts here:
+                auth_lookup = gen_auth_lookup(auth_ws)
                 for arg in range(rel_persons_clmn, rel_subject_clmn+1, 1):
                     for af in authority_files(row, arg, auth_lookup, E,
                                               shelfmark_modified, row_num):
@@ -637,8 +673,8 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 full_ead.append(archdesc)
 
     # This part writes out the XML file
-            with open(end_directory+"/"+shelfmark_modified+"_"+str(
-                    datetime.now().strftime("%Y%m%d_%H%M%S")
+            with open(end_directory+"/"+"Translation_English_"+shelfmark_modified+"_"+str(
+                    datetime.now().strftime("%Y%m%d_%H%M")
                     )+'.xml', 'wb') as f:
                 f.write(etree.tostring(
                     full_ead, encoding="utf-8", xml_declaration=True,
@@ -677,10 +713,8 @@ def askDirectory(event=None):
     end_directory_label.delete(0, END)
     end_directory_label.insert(0, end_directory)
 
-'''The following part creates the visual app features'''
+
 app = tk.Tk()
-photo = tk.PhotoImage(file='Gather_icon3.png')
-app.wm_iconphoto(False, photo)
 app.title("Gather Renewed")
 app.option_add("*font", "calibri 10")
 
