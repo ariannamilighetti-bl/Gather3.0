@@ -19,48 +19,80 @@ from openpyxl import load_workbook
 # These are the column number for the fields used
 # If the template changes, change the column numbers here
 # IAMS template:
+# Identification
 repository_clmn = 0
 coll_area_clmn = 1
 collection_clmn = 2
 level_clmn = 3
 reference_clmn = 4
 ext_ref_clmn = 5
+# Title Information
 title_clmn = 6
+# Date and Calendar
 date_rng_clmn = 7
-era_clmn = 8
-calendar_clmn = 9
-extent_clmn = 10
-scope_content_clmn = 11
-phys_char_clmn = 12
-access_cond_clmn = 13
-arrangement_clmn = 14
-mat_language_clmn = 22
-mat_langcode_clmn = 23
-mat_script_clmn = 24
-mat_scriptcode_clmn = 25
-descr_lang_clmn = 26
-descr_langcode_clmn = 27
-descr_script_clmn = 28
-descr_scriptcode_clmn = 29
-rel_persons_clmn = 30
-rel_fams_clmn = 31
-rel_corp_bds_clmn = 32
-rel_places_clmn = 33
-rel_subject_clmn = 34
-coordinates_clmn = 37
-scale_clmn = 38
-scale_des_clmn = 39
-orientation_clmn = 41
-legal_sts_clmn = 42
-mat_type_clmn = 49
-ark_id_clmn = 51
-iams_id_clmn = 52
+start_date_clmn = 8
+end_date_clmn = 9
+era_clmn = 10
+calendar_clmn = 11
+# Content and Use
+extent_clmn = 12
+scope_content_clmn = 13
+phys_char_clmn = 14
+# Conditions of Access and Use
+access_cond_clmn = 15
+# Context
+imm_acq_column = 16
+cust_hist_clmn = 17
+admin_context_clmn = 18
+arrangement_clmn = 19
+# Allied Material
+rel_mat_clmn = 20
+find_aids_clmn = 21
+or_info_clmn = 22
+copise_info_clmn = 23
+pub_notes_clmn = 24
+exhib_clmn = 25
+rel_arch_des_clmn = 26
+# Languages and Scripts
+mat_language_clmn = 27
+mat_langcode_clmn = 28
+mat_script_clmn = 29
+mat_scriptcode_clmn = 30
+descr_lang_clmn = 31
+descr_langcode_clmn = 32
+descr_script_clmn = 33
+descr_scriptcode_clmn = 34
+# Authority Relationships
+rel_persons_clmn = 35
+rel_fams_clmn = 36
+rel_corp_bds_clmn = 37
+rel_places_clmn = 38
+rel_subject_clmn = 39
+# Cartographic
+dec_lat_clmn = 40
+dec_long_clmn = 41
+dec_coords_clmn = 42
+scale_clmn = 43
+scale_des_clmn = 44
+projection_clmn = 45
+orientation_clmn = 46
+# Record Control
+legal_sts_clmn = 47
+lev_details_clmn = 48
+Visibility_clmn = 49
+log_type_clmn = 50
+log_lab_clmn = 51
+page_seq_range = 52
+page_lab_range = 53
+mat_type_clmn = 54
+item_type_clmn = 55
+# Identifiers
+ark_id_clmn = 56
+iams_id_clmn = 57
 
 
 # Gather definitions
 # Definitions used to create the nodes:
-
-
 def get_header(ws):
     '''Returns the values of the header row'''
     header = []
@@ -110,14 +142,20 @@ def header_label(header_row, arg, label):
 
 def date_normal(row, arg):
     '''Returns the date field in the format start/end'''
-    full_date = str(row[arg].value)
-    if "-" in full_date:
-        index = full_date.rfind("-")
-        start_date = full_date[index-4:index]
-        end_date = full_date[-4:]
-        date = start_date+"/"+end_date
+    if row[start_date_clmn].value:
+        if row[end_date_clmn].value:
+            date = str(row[start_date_clmn].value)+"/"+str(row[end_date_clmn].value)
+        else:
+            date = str(row[start_date_clmn].value)+"/"+str(row[start_date_clmn].value)
     else:
-        date = full_date[-4:]+"/"+full_date[-4:]
+        full_date = str(row[arg].value)
+        if "-" in full_date:
+            index = full_date.rfind("-")
+            start_date = full_date[index-4:index]
+            end_date = full_date[-4:]
+            date = start_date+"/"+end_date
+        else:
+            date = full_date[-4:]+"/"+full_date[-4:]
     return {"normal": date}
 
 
@@ -128,7 +166,8 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
     lists = E.list()
     if row[arg].value:
         list_content = []
-        paragraphs = row[arg].value.split("</p>")
+        paragraph_initial = row[arg].value.replace("</list></p>","").replace("<p><list>","<list>")
+        paragraphs = paragraph_initial.split("</p>")
         for chunk in paragraphs:
             lines = chunk.split("</item>")
             for line in lines:
@@ -136,15 +175,14 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
                 if line:
                     tid_label = tid(row, arg, shelfmark_modified, row_num)
                     if line.find('<emph render="italic">') != -1:
-                        sections = line.split(' <emph')
+                        section1 = line.replace("</emph><emph","</emph> <emph")
+                        sections = section1.split(' <emph')
                         emphatic_line = ""
                         for section in sections:
-                            print(section)
                             if section.find('render="italic">') != -1:
                                 top = section.split('render="italic">')[0]
                                 emph_all = section.split('render="italic">')[1]
                                 emph = emph_all.split('</emph>')[0]
-                                print(emph)
                                 bottom = section.split("</emph>")[1]
                                 emph_tid = shelfmark_modified+"_"+str(tid_num)
                                 tid_num += 1
@@ -161,20 +199,17 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
                         content.append(lists)
                     elif list_content == []:
                         line = line.replace("<p>", "")
-                        if line == "India Office Records and Private Papers":
-                            line = "India Office Records"
                         top_p = E.p(line, tid_label)
                         content.append(top_p)
                     else:
                         line = line.replace("<p>", "")
-                        bttm_p = E.p(line,
-                                     tid_label)
-                        content.append(bttm_p)
-            
+                        bttm_p = E.p(line, tid_label)
+                        content.append(bttm_p)    
     else:
         p = E.p()
         content.append(p)
     return content
+
 
 def title_content(row, arg, E, shelfmark_modified, row_num):
     '''Creates the p node of free text fields and bullet point logic'''
@@ -280,7 +315,6 @@ def authority_files(row, arg, auth_lookup, E, shelfmark_modified, row_num):
         return ""
         
 
-
 # IAMS template validation definition
 def template_verification(ws, sh_complete_label):
     '''Checks the well-formedness of the IAMS template'''
@@ -288,7 +322,7 @@ def template_verification(ws, sh_complete_label):
     row_num = 0
     for row in ws.iter_rows(min_row=2):
         row_num += 1
-        if len(row) == 53:
+        if len(row) == 58:
             if row[repository_clmn].value:
                 if row[coll_area_clmn].value:
                     if row[collection_clmn].value:
@@ -395,7 +429,7 @@ def template_verification(ws, sh_complete_label):
 def QatarGather(IAMS_filename, Auth_filename, end_directory):
     '''The main Qatar Gather code. This creates the full XML'''
     auth_file_wb = load_workbook(Auth_filename, read_only=True)
-    auth_ws = auth_file_wb["Sheet1"]
+    auth_ws = auth_file_wb.active
     auth_lookup = gen_auth_lookup(auth_ws)
 
     wb = load_workbook(IAMS_filename, read_only=True)
@@ -573,8 +607,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 did.append(physdesc)
 
                 extent = E.extent(content(row, extent_clmn),
-                                  tid(row, extent_clmn, shelfmark_modified,
-                                      row_num))
+                                  tid(row, extent_clmn, shelfmark_modified, row_num))
                 physdesc.append(extent)
         # Map details generated here
                 if row[mat_type_clmn].value == 'Maps and Plans':
@@ -592,9 +625,9 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                                 row_num))
                         did.append(materialspec)
                         materialspec = E.materialspec(
-                            content(row, coordinates_clmn),
+                            content(row, dec_coords_clmn),
                             {'type': "coordinates"}, {'label': "decimal"},
-                            tid(row, coordinates_clmn, shelfmark_modified,
+                            tid(row, dec_coords_clmn, shelfmark_modified,
                                 row_num))
                         did.append(materialspec)
                         materialspec = E.materialspec(
@@ -624,9 +657,9 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 accruals.append(p)
                 archdesc.append(accruals)
 
-                bioghist = E.bioghist()  # Empty node
-                p = E.p()
-                bioghist.append(p)
+                bioghist = E.bioghist()
+                for p in pcontent(row, admin_context_clmn, E, shelfmark_modified, row_num):
+                    bioghist.append(p)
                 archdesc.append(bioghist)
 
                 appraisal = E.appraisal()  # Empty node
@@ -640,7 +673,35 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                     arrangement.append(p)
                 archdesc.append(arrangement)
 
-        # This allows to skip the node if item is part of a bigger volume
+                # Adds custodial history if necessary
+                if row[cust_hist_clmn].value:
+                    custodial_history = E.custodhist()
+                    for p in pcontent(row, cust_hist_clmn, E, shelfmark_modified, row_num):
+                        custodial_history.append(p)
+                    archdesc.append(custodial_history)
+                
+                # Adds finding aids if necessary
+                if row[find_aids_clmn].value:
+                    otherfindaid = E.otherfindaid()
+                    for p in pcontent(row, find_aids_clmn, E, shelfmark_modified, row_num):
+                        otherfindaid.append(p)
+                    archdesc.append(otherfindaid)
+                
+                # Adds finding aids if necessary
+                if row[pub_notes_clmn].value:
+                    bibliography = E.bibliography()
+                    for p in pcontent(row, pub_notes_clmn, E, shelfmark_modified, row_num):
+                        bibliography.append(p)
+                    archdesc.append(bibliography)
+
+                # Adds custodial history if necessary
+                if row[imm_acq_column].value:
+                    acqinfo = E.acqinfo()
+                    for p in pcontent(row, imm_acq_column, E, shelfmark_modified, row_num):
+                        acqinfo.append(p)
+                    archdesc.append(acqinfo)
+
+                # This allows to skip the node if item is part of a bigger volume
                 if row_num == 1 or row[
                         mat_type_clmn].value != "Archives and Manuscripts":
                     phystech = E.phystech()
@@ -682,17 +743,13 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                 archdesc.append(controlaccess)
                 # End of authority files
 
-                note = E.note({"type": "project/collection"})
-                for p in pcontent(row, coll_area_clmn, E, shelfmark_modified,
-                                  row_num):
+                project = []
+                project = row[collection_clmn].value.split("|")
+                for i in project:
+                    note = E.note({"type": "project/collection"})
+                    p = E.p(i, tid(row, mat_type_clmn, shelfmark_modified, row_num))
                     note.append(p)
-                controlaccess.append(note)
-
-                note = E.note({"type": "project/collection"})
-                for p in pcontent(row, collection_clmn, E, shelfmark_modified,
-                                  row_num):
-                    note.append(p)
-                controlaccess.append(note)
+                    controlaccess.append(note)
 
                 rec_num += 1
 
