@@ -16,6 +16,8 @@ from lxml.etree import Comment
 from openpyxl import load_workbook
 
 
+
+
 # These are the column number for the fields used
 # If the template changes, change the column numbers here
 # IAMS template:
@@ -96,7 +98,7 @@ iams_id_clmn = 57
 def get_header(ws):
     '''Returns the values of the header row'''
     header = []
-    for cell in ws[1]:
+    for cell in ws[2]:
         header.append(cell.value)
     return header
 
@@ -159,7 +161,7 @@ def date_normal(row, arg):
     return {"normal": date}
 
 
-def pcontent(row, arg, E, shelfmark_modified, row_num):
+def pcontent(row, arg, E, shelfmark_modified, row_num, sh_furth_steps_label):
     '''Creates the p node of free text fields and bullet point logic'''
     global tid_num
     content = []
@@ -175,11 +177,13 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
                 if line:
                     tid_label = tid(row, arg, shelfmark_modified, row_num)
                     if line.find('<emph render="italic">') != -1:
+                        sh_furth_steps_label.config(text="Replace &lt; with < and &gt; with >" , fg="black", bg="#f1c232")
                         section1 = line.replace("</emph><emph","</emph> <emph")
                         sections = section1.split(' <emph')
                         emphatic_line = ""
                         for section in sections:
                             if section.find('render="italic">') != -1:
+                                sh_furth_steps_label.config(text="Replace &lt; with < and &gt; with >" , fg="black")
                                 top = section.split('render="italic">')[0]
                                 emph_all = section.split('render="italic">')[1]
                                 emph = emph_all.split('</emph>')[0]
@@ -211,7 +215,7 @@ def pcontent(row, arg, E, shelfmark_modified, row_num):
     return content
 
 
-def title_content(row, arg, E, shelfmark_modified, row_num):
+def title_content(row, arg, E, shelfmark_modified, row_num, sh_furth_steps_label):
     '''Creates the p node of free text fields and bullet point logic'''
     global tid_num
     # content=[]
@@ -219,6 +223,7 @@ def title_content(row, arg, E, shelfmark_modified, row_num):
         tid_label = tid(row, arg, shelfmark_modified, row_num)
         line = row[arg].value
         if line.find('<emph render="italic">') != -1:
+            sh_furth_steps_label.config(text="Replace &lt; with < and &gt; with >" , fg="black", bg="#f1c232")
             top = line.split('<emph render="italic">')[0]
             emph_all = line.split('<emph render="italic">')[1]
             emph = emph_all.split('</emph>')[0]
@@ -246,6 +251,16 @@ def current_wordcount(row):
 
 
 # Authority Files processing definitions
+def auth_validation(auth_ws):
+    header = []
+    for cell in auth_ws[1]:
+        header.append(cell.value)
+    if len(header)>= 5 and str(header[0])=="Name":
+        validated = True
+    else:
+        validated = False
+    return validated
+
 # Generate athority lookup
 def gen_auth_lookup(auth_ws):
     '''Function looks at the Authority files sheet and creates a dictionary 
@@ -256,6 +271,7 @@ def gen_auth_lookup(auth_ws):
            auth_file_attr[3] = Altrender
            auth_file_attr[4] = IAMS ID
         returns a lookup to the row number in the file.'''
+
     auth_lookup = {}
     reference = 1
     for row_num, row in enumerate(auth_ws.iter_rows(min_row=2)):
@@ -303,12 +319,25 @@ def authority_files(row, arg, auth_lookup, E, shelfmark_modified, row_num):
                             rel_places_clmn: E.geogname,
                             rel_subject_clmn: E.subject}
             current_auth = auth_lookup.get(int(line))
-            text = element_dict[arg](current_auth[0],
-                {"authfilenumber": current_auth[1]},
-                {"role": current_auth[2]},
-                {"source": "IAMS"},
-                {"altrender": current_auth[3]},
-                tid(row, arg, shelfmark_modified, row_num))
+            if arg == rel_persons_clmn or arg == rel_fams_clmn or arg == rel_corp_bds_clmn:
+                text = element_dict[arg](current_auth[0],
+                    {"authfilenumber": current_auth[1]},
+                    {"role": current_auth[2]},
+                    {"source": "IAMS"},
+                    {"altrender": current_auth[3]},
+                    tid(row, arg, shelfmark_modified, row_num))
+            elif arg == rel_subject_clmn:
+                text = element_dict[arg](current_auth[0],
+                    {"authfilenumber": current_auth[1]},
+                    {"altrender": current_auth[3]},
+                    {"source": "IAMS"},
+                    tid(row, arg, shelfmark_modified, row_num))
+            else:
+                text = element_dict[arg](current_auth[0],
+                    {"authfilenumber": current_auth[1]},
+                    {"role": current_auth[2]},
+                    {"source": "IAMS"},
+                    tid(row, arg, shelfmark_modified, row_num))
             full_text.append(text)
         return full_text
     else:
@@ -316,111 +345,84 @@ def authority_files(row, arg, auth_lookup, E, shelfmark_modified, row_num):
         
 
 # IAMS template validation definition
-def template_verification(ws, sh_complete_label):
+def template_verification(ws, sh_complete_label, sh_furth_steps_label):
     '''Checks the well-formedness of the IAMS template'''
-    validation_check = 0
-    row_num = 0
-    for row in ws.iter_rows(min_row=2):
-        row_num += 1
-        if len(row) == 58:
-            if row[repository_clmn].value:
-                if row[coll_area_clmn].value:
-                    if row[collection_clmn].value:
-                        if row[level_clmn].value:
-                            if row[reference_clmn].value:
-                                if row[title_clmn].value:
-                                    if row[date_rng_clmn].value:
-                                        if row[era_clmn].value:
-                                            if row[calendar_clmn].value:
-                                                if row[access_cond_clmn].value:
-                                                    if row[mat_language_clmn].value:
-                                                        if row[mat_langcode_clmn].value:
-                                                            if row[mat_script_clmn].value:
-                                                                if row[mat_scriptcode_clmn].value:
-                                                                    if row[descr_lang_clmn].value:
-                                                                        if row[mat_type_clmn].value:
-                                                                            if row[scope_content_clmn].value:
-                                                                                if row[scope_content_clmn].value.find("<p>")!= -1:
-                                                                                    validation_check += 1
-                                                                                    sh_complete_label.configure(
-                                                                                        text="Unrecognised Error", bg="#cc0000", fg="white")
+    current_template_order = get_header(ws)
+    approved_order = ['Repository','Collection Area','Project / Collection','Level','Reference','Former external reference','Title','Date range','Start date','End date','Era','Calendar','Extent','Scope and content','Physical characteristics','Access conditions','Immediate source of acquisition','Custodial history','Administrative context','Arrangement','Related material','Finding aids','Originals information','Copies information','Publication note','Exhibition','Related archival descriptions','Language of material','Language codes of material','Scripts of material','Script codes of material','Language of description','Language code of description','Script of description','Script code of description','Related persons','Related families','Related corporate bodies','Related places','Related subjects','Decimal Latitude','Decimal Longitude','Decimal Co-ordinates','Scale','Scale Designator','Projection','Orientation','Legal status','Level of detail','Visibility','Logical type','Logical label','Page sequence range','Page label range','Material type','Item type','ARK ID','IAMS ID']
+    print(current_template_order == approved_order)
+    if current_template_order == approved_order:
+        validation_check = 0
+        row_num = 0
+        for row in ws.iter_rows(min_row=5):
+            row_num += 1
+            if len(row) == 58:
+                if row[repository_clmn].value:
+                    if row[coll_area_clmn].value:
+                        if row[collection_clmn].value:
+                            if row[level_clmn].value:
+                                if row[reference_clmn].value:
+                                    if row[title_clmn].value:
+                                        if row[date_rng_clmn].value:
+                                            if row[era_clmn].value:
+                                                if row[calendar_clmn].value:
+                                                    if row[access_cond_clmn].value:
+                                                        if row[mat_language_clmn].value:
+                                                            if row[mat_langcode_clmn].value:
+                                                                if row[mat_script_clmn].value:
+                                                                    if row[mat_scriptcode_clmn].value:
+                                                                        if row[descr_lang_clmn].value:
+                                                                            if row[mat_type_clmn].value:
+                                                                                if row[scope_content_clmn].value:
+                                                                                    if row[scope_content_clmn].value.find("<p>")!= -1:
+                                                                                        if len(row[scope_content_clmn].value.split("<list>")) == len(row[scope_content_clmn].value.split("<p><list>")):
+                                                                                            sh_complete_label.configure(text="Unrecognised Error", bg="#cc0000", fg="white")
+                                                                                            validation_check += 1
+                                                                                        else:
+                                                                                            sh_furth_steps_label.config(text="Lists are not encased in <p><list> nodes" , fg="black")
+                                                                                    else:
+                                                                                        sh_furth_steps_label.config(text="Missing paragraph structure in free text" , fg="black")
                                                                                 else:
-                                                                                    sh_complete_label.configure(
-                                                                                        text="Missing paragraph structure in free text",
-                                                                                        bg="#cc0000", fg="white")
+                                                                                    validation_check += 1
                                                                             else:
-                                                                                validation_check += 1
+                                                                                sh_furth_steps_label.config(text="Missing material type" , fg="black")
                                                                         else:
-                                                                            sh_complete_label.configure(
-                                                                                text="Missing material type",
-                                                                                bg="#cc0000", fg="white")
+                                                                            sh_furth_steps_label.config(text="Missing description language" , fg="black")
                                                                     else:
-                                                                        sh_complete_label.configure(
-                                                                            text="Missing description language",
-                                                                            bg="#cc0000", fg="white")
+                                                                        sh_furth_steps_label.config(text="Missing material script code" , fg="black")
                                                                 else:
-                                                                    sh_complete_label.configure(
-                                                                        text="Missing material script code",
-                                                                        bg="#cc0000", fg="white")
+                                                                    sh_furth_steps_label.config(text="Missing material script" , fg="black")
                                                             else:
-                                                                sh_complete_label.configure(
-                                                                    text="Missing material script",
-                                                                    bg="#cc0000", fg="white")
+                                                                sh_furth_steps_label.config(text="Missing material language code" , fg="black")
                                                         else:
-                                                            sh_complete_label.configure(
-                                                                text="Missing material language code",
-                                                                bg="#cc0000", fg="white")
+                                                            sh_furth_steps_label.config(text="Missing material language" , fg="black")
                                                     else:
-                                                        sh_complete_label.configure(
-                                                            text="Missing material language",
-                                                            bg="#cc0000", fg="white")
+                                                        sh_furth_steps_label.config(text="Missing access conditions" , fg="black")
                                                 else:
-                                                    sh_complete_label.configure(
-                                                        text="Missing access conditions",
-                                                        bg="#cc0000", fg="white")
+                                                    sh_furth_steps_label.config(text="Missing calendar" , fg="black")
                                             else:
-                                                sh_complete_label.configure(
-                                                    text="Missing calendar",
-                                                    bg="#cc0000", fg="white")
+                                                sh_furth_steps_label.config(text="Missing era" , fg="black")
                                         else:
-                                            sh_complete_label.configure(
-                                                text="Missing era",
-                                                bg="#cc0000", fg="white")
+                                            sh_furth_steps_label.config(text="Missing date range" , fg="black")
                                     else:
-                                        sh_complete_label.configure(
-                                            text="Missing date range",
-                                            bg="#cc0000", fg="white")
+                                        sh_furth_steps_label.config(text="Missing title" , fg="black")
                                 else:
-                                    sh_complete_label.configure(
-                                        text="Missing title",
-                                        bg="#cc0000", fg="white")
+                                    sh_furth_steps_label.config(text="Missing shelfmark reference" , fg="black")
                             else:
-                                sh_complete_label.configure(
-                                    text="Missing shelfmark reference",
-                                    bg="#cc0000", fg="white")
+                                sh_furth_steps_label.config(text="Missing record level" , fg="black")
                         else:
-                            sh_complete_label.configure(
-                                text="Missing record level",
-                                bg="#cc0000", fg="white")
+                            sh_furth_steps_label.config(text="Missing collection field" , fg="black")
                     else:
-                        sh_complete_label.configure(
-                            text="Missing collection field",
-                            bg="#cc0000", fg="white")
+                        sh_furth_steps_label.config(text="Missing collection area field" , fg="black")
                 else:
-                    sh_complete_label.configure(
-                        text="Missing collection area field",
-                        bg="#cc0000", fg="white")
+                    sh_furth_steps_label.config(text="Missing repository field" , fg="black")
             else:
-                sh_complete_label.configure(
-                    text="Missing repository field",
-                    bg="#cc0000", fg="white")
+                sh_furth_steps_label.config(text="Not enough fields in template" , fg="black")
+        if validation_check == row_num:
+            validated = True
         else:
-            sh_complete_label.configure(
-                text="Not enough fields in template",
-                bg="#cc0000", fg="white")
-    if validation_check == row_num:
-        validated = True
+            validated = False
     else:
+        sh_furth_steps_label.config(text="Incorrect order of fields in IAMS template" , fg="black")
         validated = False
     return validated
 
@@ -430,346 +432,357 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
     '''The main Qatar Gather code. This creates the full XML'''
     auth_file_wb = load_workbook(Auth_filename, read_only=True)
     auth_ws = auth_file_wb.active
-    auth_lookup = gen_auth_lookup(auth_ws)
-
-    wb = load_workbook(IAMS_filename, read_only=True)
+    
+    wb = load_workbook(IAMS_filename, read_only=True, data_only = True)
     shelfmarks = wb.sheetnames
     shm_num = 0
 
     for shelfmark_modified in shelfmarks:
-        shm_num += 1
-        rec_num = 1
-        row_num = 0
-        wordcount = 0
-        ws = wb[shelfmark_modified]
-        header_row = get_header(ws)
-        E = ElementMaker(namespace="urn:isbn:1-931666-22-9",
-                         nsmap={'ead': "urn:isbn:1-931666-22-9",
-                                'xlink': "http://www.w3.org/1999/xlink",
-                                'xsi':
-                                    "http://www.w3.org/2001/XMLSchema-instance"
-                                })
-        full_ead = E.ead()
+        if shelfmark_modified != "Template" and shelfmark_modified != "Shelfmark Arks and IAMS ID" and shelfmark_modified != "Data Validation":
+            shm_num += 1
+            rec_num = 1
+            row_num = 0
+            wordcount = 0
+            ws = wb[shelfmark_modified]
+            header_row = get_header(ws)
+            E = ElementMaker(namespace="urn:isbn:1-931666-22-9",
+                            nsmap={'ead': "urn:isbn:1-931666-22-9",
+                                    'xlink': "http://www.w3.org/1999/xlink",
+                                    'xsi':
+                                        "http://www.w3.org/2001/XMLSchema-instance"
+                                    })
+            full_ead = E.ead()
 
-        sh_label = tk.Label(master=run_frame, text=shelfmark_modified)
-        sh_label.grid(row=1+shm_num, column=0, padx=5, pady=5, sticky="nsew")
-        sh_verif_lbl = tk.Label(master=run_frame)
-        sh_verif_lbl.grid(row=1+shm_num, column=1, padx=5, pady=5,
-                          sticky="nsew")
-        sh_complete_label = tk.Label(master=run_frame)
-        sh_complete_label.grid(row=1+shm_num, column=2, padx=5, pady=5,
-                               sticky="nsew")
-        complete_label = tk.Label(master=app, font=("calibri", 14, "bold"),
-                                  anchor="e")
-        complete_label.grid(row=5, column=0, padx=5, pady=5, sticky="nsew")
-        sh_wordcount = tk.Label(master=run_frame)
-        sh_wordcount.grid(row=1+shm_num, column=3, padx=5, pady=5,
-                          sticky="nsew")
-        if template_verification(ws, sh_complete_label) is True:
-            sh_verif_lbl.configure(text="Verified", bg="green", fg="white")
-        # This part creates the tree for each child shelfmark.
-            for row in ws.iter_rows(min_row=2, values_only=False):
-                ead = E.ead()
-                comment = Comment(
-                    f"New record starts here {row[reference_clmn].value}")
-                full_ead.append(comment)
-                wordcount += current_wordcount(row)
-                shelfmark = str(row[reference_clmn].value)
+            sh_label = tk.Label(master=run_frame, text=shelfmark_modified)
+            sh_label.grid(row=1+shm_num, column=0, padx=5, pady=5, sticky="nsew")
+            sh_verif_lbl = tk.Label(master=run_frame)
+            sh_verif_lbl.grid(row=1+shm_num, column=1, padx=5, pady=5,
+                            sticky="nsew")
+            sh_complete_label = tk.Label(master=run_frame)
+            sh_complete_label.grid(row=1+shm_num, column=2, padx=5, pady=5,
+                                sticky="nsew")
+            sh_furth_steps_label = tk.Label(master=run_frame)
+            sh_furth_steps_label.grid(row=1+shm_num, column=3, padx=5, pady=5,
+                                sticky="nsew")
+            complete_label = tk.Label(master=app, font=("calibri", 14, "bold"),
+                                    anchor="e")
+            complete_label.grid(row=5, column=0, padx=5, pady=5, sticky="nsew")
+            sh_wordcount = tk.Label(master=run_frame)
+            sh_wordcount.grid(row=1+shm_num, column=4, padx=5, pady=5,
+                            sticky="nsew")
+            if template_verification(ws, sh_complete_label, sh_furth_steps_label) is True:
+                sh_verif_lbl.configure(text="Verified", font=("calibri", 10, "bold"), fg="#3b851a")
+                if auth_validation(auth_ws) is True:
+                    auth_lookup = gen_auth_lookup(auth_ws)
 
-                # header
-                eadheader = E.eadheader(start_record(str(rec_num)))
-                ead.append(eadheader)
+            # This part creates the tree for each child shelfmark.
+                    for row in ws.iter_rows(min_row=5, values_only=False):
+                        ead = E.ead()
+                        comment = Comment(
+                            f"New record starts here {row[reference_clmn].value}")
+                        full_ead.append(comment)
+                        wordcount += current_wordcount(row)
+                        shelfmark = str(row[reference_clmn].value)
 
-                eadid = E.eadid(str(shelfmark),
-                                tid(row, reference_clmn,
-                                    shelfmark_modified, row_num))
-                eadheader.append(eadid)
-                row_num += 1
+                        # header
+                        eadheader = E.eadheader(start_record(str(rec_num)))
+                        ead.append(eadheader)
 
-                filedesc = E.filedesc()  # wrapper node, should not have info
-                eadheader.append(filedesc)
+                        eadid = E.eadid(str(shelfmark),
+                                        tid(row, reference_clmn,
+                                            shelfmark_modified, row_num))
+                        eadheader.append(eadid)
+                        row_num += 1
 
-                titlestmt = E.titlestmt()  # wrapper node, should not have info
-                filedesc.append(titlestmt)
+                        filedesc = E.filedesc()  # wrapper node, should not have info
+                        eadheader.append(filedesc)
 
-                titleproper = E.titleproper()  # not used in IAMS material
-                titlestmt.append(titleproper)
+                        titlestmt = E.titlestmt()  # wrapper node, should not have info
+                        filedesc.append(titlestmt)
 
-                profiledesc = E.profiledesc()  # wrapper node,  no info
-                eadheader.append(profiledesc)
+                        titleproper = E.titleproper()  # not used in IAMS material
+                        titlestmt.append(titleproper)
 
-                creation = E.creation()  # not used in Qatar(?)
-                profiledesc.append(creation)
+                        profiledesc = E.profiledesc()  # wrapper node,  no info
+                        eadheader.append(profiledesc)
 
-                date_exported = E.date(str(datetime.now()
-                                           .strftime("%Y-%m-%dT%H:%M:%S")),
-                                       {"type": "exported"},
-                                       tid(row, reference_clmn,
-                                           shelfmark_modified, row_num))
-                creation.append(date_exported)
+                        creation = E.creation()  # not used in Qatar(?)
+                        profiledesc.append(creation)
 
-                date_modified = E.date(str(wb.properties.modified.strftime(
-                    "%Y-%m-%dT%H:%M:%S")), {"type": "modified"},
-                    tid(row, reference_clmn, shelfmark_modified, row_num))
-                creation.append(date_modified)
-
-                langusage = E.langusage()  # not used in IAMS material
-                profiledesc.append(langusage)
-
-                # this is language of the description
-                language = E.language(content(row, descr_lang_clmn),
-                                      labels(row, descr_langcode_clmn,
-                                             "langcode"),
-                                      labels(row, descr_scriptcode_clmn,
-                                             "scriptcode"),
-                                      tid(row, descr_lang_clmn,
-                                          shelfmark_modified, row_num))
-                langusage.append(language)
-
-                # archdesc
-                archdesc = E.archdesc(labels(row, level_clmn, "level"))
-                ead.append(archdesc)
-
-                did = E.did()  # wrapper node, should not have info
-                archdesc.append(did)
-
-                # British Library: Indian Office Records
-                repository = E.repository(
-                    row[repository_clmn].value + ": " + row[coll_area_clmn
-                                                            ].value,
-                    tid(row, repository_clmn, shelfmark_modified, row_num))
-                did.append(repository)
-
-                unitid = E.unitid(shelfmark,
-                                  labels(row, iams_id_clmn, "label"),
-                                  labels(row, ark_id_clmn, "identifier"),
-                                  tid(row, reference_clmn, shelfmark_modified,
-                                      row_num))
-                # These are the IAMS identifiers (ark and number)
-                did.append(unitid)
-
-                # this will say "title"
-                unittitle = E.unittitle(header_label(header_row, title_clmn,
-                                                     "label"))
-                did.append(unittitle)
-
-                # Item title
-                text_title = title_content(row, title_clmn, E, shelfmark_modified, row_num)
-                # title = E.title(title_content(row, title_clmn, E, shelfmark_modified, row_num), tid(row, title_clmn,
-                #                                shelfmark_modified, row_num))
-                unittitle.append(text_title)
-
-                if row[ext_ref_clmn].value:
-                    unittitle = E.unittitle(content(
-                        row, ext_ref_clmn), header_label(header_row,
-                                                         ext_ref_clmn,
-                                                         "label"),
-                                            tid(row, ext_ref_clmn,
+                        date_exported = E.date(str(datetime.now()
+                                                .strftime("%Y-%m-%dT%H:%M:%S")),
+                                            {"type": "exported"},
+                                            tid(row, reference_clmn,
                                                 shelfmark_modified, row_num))
+                        creation.append(date_exported)
+
+                        date_modified = E.date(str(wb.properties.modified.strftime(
+                            "%Y-%m-%dT%H:%M:%S")), {"type": "modified"},
+                            tid(row, reference_clmn, shelfmark_modified, row_num))
+                        creation.append(date_modified)
+
+                        langusage = E.langusage()  # not used in IAMS material
+                        profiledesc.append(langusage)
+
+                        # this is language of the description
+                        language = E.language(content(row, descr_lang_clmn),
+                                            labels(row, descr_langcode_clmn,
+                                                    "langcode"),
+                                            labels(row, descr_scriptcode_clmn,
+                                                    "scriptcode"),
+                                            tid(row, descr_lang_clmn,
+                                                shelfmark_modified, row_num))
+                        langusage.append(language)
+
+                        # archdesc
+                        archdesc = E.archdesc(labels(row, level_clmn, "level"))
+                        ead.append(archdesc)
+
+                        did = E.did()  # wrapper node, should not have info
+                        archdesc.append(did)
+
+                        # British Library: Indian Office Records
+                        repository = E.repository(
+                            row[repository_clmn].value + ": " + row[coll_area_clmn
+                                                                    ].value,
+                            tid(row, repository_clmn, shelfmark_modified, row_num))
+                        did.append(repository)
+
+                        unitid = E.unitid(shelfmark,
+                                        labels(row, iams_id_clmn, "label"),
+                                        labels(row, ark_id_clmn, "identifier"),
+                                        tid(row, reference_clmn, shelfmark_modified,
+                                            row_num))
+                        # These are the IAMS identifiers (ark and number)
+                        did.append(unitid)
+
+                        # this will say "title"
+                        unittitle = E.unittitle(header_label(header_row, title_clmn,
+                                                            "label"))
+                        did.append(unittitle)
+
+                        # Item title
+                        text_title = title_content(row, title_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                        unittitle.append(text_title)
+
+                        if row[ext_ref_clmn].value:
+                            unittitle = E.unittitle(content(
+                                row, ext_ref_clmn), header_label(header_row,
+                                                                ext_ref_clmn,
+                                                                "label"),
+                                                    tid(row, ext_ref_clmn,
+                                                        shelfmark_modified, row_num))
+                        else:
+                            unittitle = E.unittitle(
+                                {"label": "Former external reference"})
+                        did.append(unittitle)  # Former external reference
+
+                        unittitle = E.unittitle({"label": "Former internal reference"})
+                        did.append(unittitle)  # Former internal reference (not used)
+
+                        unitdate = E.unitdate(content(row, date_rng_clmn), {
+                            "datechar": "Creation"},
+                            labels(row, calendar_clmn, "calendar"),
+                            labels(row, era_clmn, "era"),
+                            date_normal(row, date_rng_clmn),
+                            tid(row, date_rng_clmn, shelfmark_modified, row_num))
+                        did.append(unitdate)  # Date of the material
+
+                        # This allows for multiple langs and langcodes separated by |
+                        # (mat_language_clmn, mat_langcode_clmn) for language
+                        # (mat_script_clmn, mat_scriptcode_clmn) for script
+                        code_label_index = 0
+                        for r in ((mat_language_clmn, mat_langcode_clmn),
+                                (mat_script_clmn, mat_scriptcode_clmn)):
+                            langmaterial = E.langmaterial()
+                            did.append(langmaterial)
+                            languages = row[r[0]].value.split("|")
+                            lang_codes = row[r[1]].value.split("|")
+                            code_labels = ["langcode", "scriptcode"]
+                            for lang, c in zip(languages, lang_codes):
+                                language = E.language(
+                                    lang, {code_labels[code_label_index]: c},
+                                    tid(row, r[0], shelfmark_modified, row_num))
+                                langmaterial.append(language)
+                            code_label_index += 1
+
+                        physdesc = E.physdesc()  # wrapper node, should not have info
+                        did.append(physdesc)
+
+                        extent = E.extent(content(row, extent_clmn),
+                                        tid(row, extent_clmn, shelfmark_modified, row_num))
+                        physdesc.append(extent)
+                # Map details generated here
+                        if row[mat_type_clmn].value == 'Maps and Plans':
+                            if row[scope_content_clmn].value:
+                                materialspec = E.materialspec(content(row, scale_clmn),
+                                                            {'type': "scale"},
+                                                            tid(row, scale_clmn,
+                                                                shelfmark_modified,
+                                                                row_num))
+                                did.append(materialspec)
+                                materialspec = E.materialspec(
+                                    content(row, scale_des_clmn),
+                                    {'type': "scale designator"},
+                                    tid(row, scale_des_clmn, shelfmark_modified,
+                                        row_num))
+                                did.append(materialspec)
+                                materialspec = E.materialspec(
+                                    content(row, dec_coords_clmn),
+                                    {'type': "coordinates"}, {'label': "decimal"},
+                                    tid(row, dec_coords_clmn, shelfmark_modified,
+                                        row_num))
+                                did.append(materialspec)
+                                materialspec = E.materialspec(
+                                    content(row, orientation_clmn),
+                                    {'type': "orientation"}, tid(row, orientation_clmn,
+                                                                shelfmark_modified,
+                                                                row_num))
+                                did.append(materialspec)
+
+                        accessrestrict = E.accessrestrict()
+                        for p in pcontent(row, access_cond_clmn, E, shelfmark_modified,
+                                        row_num, sh_furth_steps_label):
+                            accessrestrict.append(p)
+                        archdesc.append(accessrestrict)
+
+                        accessrestrict = E.accessrestrict()
+                        # This second accessrestrict is a wrapper node
+                        archdesc.append(accessrestrict)
+
+                        legalstatus = E.legalstatus(content(row, legal_sts_clmn),
+                                                    tid(row, legal_sts_clmn,
+                                                        shelfmark_modified, row_num))
+                        accessrestrict.append(legalstatus)
+
+                        accruals = E.accruals()  # Empty node
+                        p = E.p()
+                        accruals.append(p)
+                        archdesc.append(accruals)
+
+                        bioghist = E.bioghist()
+                        for p in pcontent(row, admin_context_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label):
+                            bioghist.append(p)
+                        archdesc.append(bioghist)
+
+                        appraisal = E.appraisal()  # Empty node
+                        p = E.p()
+                        appraisal.append(p)
+                        archdesc.append(appraisal)
+
+                        arrangement = E.arrangement()
+                        for p in pcontent(row, arrangement_clmn, E, shelfmark_modified,
+                                        row_num, sh_furth_steps_label):
+                            arrangement.append(p)
+                        archdesc.append(arrangement)
+
+                        # Adds custodial history if necessary
+                        if row[cust_hist_clmn].value:
+                            custodial_history = E.custodhist()
+                            for p in pcontent(row, cust_hist_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label):
+                                custodial_history.append(p)
+                            archdesc.append(custodial_history)
+                        
+                        # Adds finding aids if necessary
+                        if row[find_aids_clmn].value:
+                            otherfindaid = E.otherfindaid()
+                            for p in pcontent(row, find_aids_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label):
+                                otherfindaid.append(p)
+                            archdesc.append(otherfindaid)
+                        
+                        # Adds finding aids if necessary
+                        if row[pub_notes_clmn].value:
+                            bibliography = E.bibliography()
+                            for p in pcontent(row, pub_notes_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label):
+                                bibliography.append(p)
+                            archdesc.append(bibliography)
+
+                        # Adds custodial history if necessary
+                        if row[imm_acq_column].value:
+                            acqinfo = E.acqinfo()
+                            for p in pcontent(row, imm_acq_column, E, shelfmark_modified, row_num, sh_furth_steps_label):
+                                acqinfo.append(p)
+                            archdesc.append(acqinfo)
+
+                        # This allows to skip the node if item is part of a bigger volume
+                        if row_num == 1 or row[
+                                mat_type_clmn].value != "Archives and Manuscripts":
+                            phystech = E.phystech()
+                            for p in pcontent(
+                                    row, phys_char_clmn, E, shelfmark_modified,
+                                    row_num, sh_furth_steps_label):
+                                phystech.append(p)
+                            archdesc.append(phystech)
+
+                        scopecontent = E.scopecontent()
+                        for p in pcontent(
+                                row, scope_content_clmn, E, shelfmark_modified,
+                                row_num, sh_furth_steps_label):
+                            scopecontent.append(p)
+                        archdesc.append(scopecontent)
+
+                        userestrict = E.userestrict()  # Empty node
+                        p = E.p()
+                        userestrict.append(p)
+                        archdesc.append(userestrict)
+
+                        odd = E.odd()  # Empty node
+                        p = E.p()
+                        odd.append(p)
+                        archdesc.append(odd)
+
+                        controlaccess = E.controlaccess()
+                        genreform = E.genreform(
+                            content(row, mat_type_clmn), {"source": "IAMS"},
+                            tid(row, mat_type_clmn, shelfmark_modified, row_num))
+                        controlaccess.append(genreform)
+
+                        # Authority files processing starts here:
+                        auth_lookup = gen_auth_lookup(auth_ws)
+                        for arg in range(rel_persons_clmn, rel_subject_clmn+1, 1):
+                            for af in authority_files(row, arg, auth_lookup, E,
+                                                    shelfmark_modified, row_num):
+                                controlaccess.append(af)
+                        archdesc.append(controlaccess)
+                        # End of authority files
+
+                        project = []
+                        project = row[collection_clmn].value.split("|")
+                        for i in project:
+                            note = E.note({"type": "project/collection"})
+                            p = E.p(i, tid(row, mat_type_clmn, shelfmark_modified, row_num))
+                            note.append(p)
+                            controlaccess.append(note)
+
+                        rec_num += 1
+
+            # This puts together two parts of each child's tree (header+description)
+            # This will append as many children as there are in the Excel tab
+                        full_ead.append(eadheader)
+                        full_ead.append(archdesc)
+
+            # This part writes out the XML file
+                    file_name = "Translation_English_"+shelfmark_modified+"_"+str(datetime.now().strftime("%Y%m%d_%H%M"))+'.xml'
+                    with open(end_directory+"/"+ file_name, 'wb') as f:
+                        f.write(etree.tostring(
+                            full_ead, encoding="utf-8", xml_declaration=True,
+                            pretty_print=True))
+                        
+
+                    sh_complete_label.config(text="Complete", fg="green", bg="#F0F0F0", font=("calibri",10,"bold"))
+                    sh_wordcount.config(text=wordcount)
                 else:
-                    unittitle = E.unittitle(
-                        {"label": "Former external reference"})
-                did.append(unittitle)  # Former external reference
+                    sh_verif_lbl.configure(text="Authority Files sheet not recognised", bg="#cc0000",
+                                        fg="white")
+                    sh_complete_label.configure(text="Unable to complete", fg="#cc0000", bg ="#F0F0F0")
+                    sh_furth_steps_label.config(text="Check the Authority Files sheet" , fg="black")
 
-                unittitle = E.unittitle({"label": "Former internal reference"})
-                did.append(unittitle)  # Former internal reference (not used)
-
-                unitdate = E.unitdate(content(row, date_rng_clmn), {
-                    "datechar": "Creation"},
-                    labels(row, calendar_clmn, "calendar"),
-                    labels(row, era_clmn, "era"),
-                    date_normal(row, date_rng_clmn),
-                    tid(row, date_rng_clmn, shelfmark_modified, row_num))
-                did.append(unitdate)  # Date of the material
-
-                # langmaterial = E.langmaterial()  # This is language
-                # did.append(langmaterial)
-
-                # This allows for multiple langs and langcodes separated by |
-                # (mat_language_clmn, mat_langcode_clmn) for language
-                # (mat_script_clmn, mat_scriptcode_clmn) for script
-                code_label_index = 0
-                for r in ((mat_language_clmn, mat_langcode_clmn),
-                          (mat_script_clmn, mat_scriptcode_clmn)):
-                    langmaterial = E.langmaterial()
-                    did.append(langmaterial)
-                    languages = row[r[0]].value.split("|")
-                    lang_codes = row[r[1]].value.split("|")
-                    code_labels = ["langcode", "scriptcode"]
-                    for lang, c in zip(languages, lang_codes):
-                        language = E.language(
-                            lang, {code_labels[code_label_index]: c},
-                            tid(row, r[0], shelfmark_modified, row_num))
-                        langmaterial.append(language)
-                    code_label_index += 1
-
-                physdesc = E.physdesc()  # wrapper node, should not have info
-                did.append(physdesc)
-
-                extent = E.extent(content(row, extent_clmn),
-                                  tid(row, extent_clmn, shelfmark_modified, row_num))
-                physdesc.append(extent)
-        # Map details generated here
-                if row[mat_type_clmn].value == 'Maps and Plans':
-                    if row[scope_content_clmn].value:
-                        materialspec = E.materialspec(content(row, scale_clmn),
-                                                      {'type': "scale"},
-                                                      tid(row, scale_clmn,
-                                                          shelfmark_modified,
-                                                          row_num))
-                        did.append(materialspec)
-                        materialspec = E.materialspec(
-                            content(row, scale_des_clmn),
-                            {'type': "scale designator"},
-                            tid(row, scale_des_clmn, shelfmark_modified,
-                                row_num))
-                        did.append(materialspec)
-                        materialspec = E.materialspec(
-                            content(row, dec_coords_clmn),
-                            {'type': "coordinates"}, {'label': "decimal"},
-                            tid(row, dec_coords_clmn, shelfmark_modified,
-                                row_num))
-                        did.append(materialspec)
-                        materialspec = E.materialspec(
-                            content(row, orientation_clmn),
-                            {'type': "orientation"}, tid(row, orientation_clmn,
-                                                         shelfmark_modified,
-                                                         row_num))
-                        did.append(materialspec)
-
-                accessrestrict = E.accessrestrict()
-                for p in pcontent(row, access_cond_clmn, E, shelfmark_modified,
-                                  row_num):
-                    accessrestrict.append(p)
-                archdesc.append(accessrestrict)
-
-                accessrestrict = E.accessrestrict()
-                # This second accessrestrict is a wrapper node
-                archdesc.append(accessrestrict)
-
-                legalstatus = E.legalstatus(content(row, legal_sts_clmn),
-                                            tid(row, legal_sts_clmn,
-                                                shelfmark_modified, row_num))
-                accessrestrict.append(legalstatus)
-
-                accruals = E.accruals()  # Empty node
-                p = E.p()
-                accruals.append(p)
-                archdesc.append(accruals)
-
-                bioghist = E.bioghist()
-                for p in pcontent(row, admin_context_clmn, E, shelfmark_modified, row_num):
-                    bioghist.append(p)
-                archdesc.append(bioghist)
-
-                appraisal = E.appraisal()  # Empty node
-                p = E.p()
-                appraisal.append(p)
-                archdesc.append(appraisal)
-
-                arrangement = E.arrangement()
-                for p in pcontent(row, arrangement_clmn, E, shelfmark_modified,
-                                  row_num):
-                    arrangement.append(p)
-                archdesc.append(arrangement)
-
-                # Adds custodial history if necessary
-                if row[cust_hist_clmn].value:
-                    custodial_history = E.custodhist()
-                    for p in pcontent(row, cust_hist_clmn, E, shelfmark_modified, row_num):
-                        custodial_history.append(p)
-                    archdesc.append(custodial_history)
-                
-                # Adds finding aids if necessary
-                if row[find_aids_clmn].value:
-                    otherfindaid = E.otherfindaid()
-                    for p in pcontent(row, find_aids_clmn, E, shelfmark_modified, row_num):
-                        otherfindaid.append(p)
-                    archdesc.append(otherfindaid)
-                
-                # Adds finding aids if necessary
-                if row[pub_notes_clmn].value:
-                    bibliography = E.bibliography()
-                    for p in pcontent(row, pub_notes_clmn, E, shelfmark_modified, row_num):
-                        bibliography.append(p)
-                    archdesc.append(bibliography)
-
-                # Adds custodial history if necessary
-                if row[imm_acq_column].value:
-                    acqinfo = E.acqinfo()
-                    for p in pcontent(row, imm_acq_column, E, shelfmark_modified, row_num):
-                        acqinfo.append(p)
-                    archdesc.append(acqinfo)
-
-                # This allows to skip the node if item is part of a bigger volume
-                if row_num == 1 or row[
-                        mat_type_clmn].value != "Archives and Manuscripts":
-                    phystech = E.phystech()
-                    for p in pcontent(
-                            row, phys_char_clmn, E, shelfmark_modified,
-                            row_num):
-                        phystech.append(p)
-                    archdesc.append(phystech)
-
-                scopecontent = E.scopecontent()
-                for p in pcontent(
-                        row, scope_content_clmn, E, shelfmark_modified,
-                        row_num):
-                    scopecontent.append(p)
-                archdesc.append(scopecontent)
-
-                userestrict = E.userestrict()  # Empty node
-                p = E.p()
-                userestrict.append(p)
-                archdesc.append(userestrict)
-
-                odd = E.odd()  # Empty node
-                p = E.p()
-                odd.append(p)
-                archdesc.append(odd)
-
-                controlaccess = E.controlaccess()
-                genreform = E.genreform(
-                    content(row, mat_type_clmn), {"source": "IAMS"},
-                    tid(row, mat_type_clmn, shelfmark_modified, row_num))
-                controlaccess.append(genreform)
-
-                # Authority files processing starts here:
-                auth_lookup = gen_auth_lookup(auth_ws)
-                for arg in range(rel_persons_clmn, rel_subject_clmn+1, 1):
-                    for af in authority_files(row, arg, auth_lookup, E,
-                                              shelfmark_modified, row_num):
-                        controlaccess.append(af)
-                archdesc.append(controlaccess)
-                # End of authority files
-
-                project = []
-                project = row[collection_clmn].value.split("|")
-                for i in project:
-                    note = E.note({"type": "project/collection"})
-                    p = E.p(i, tid(row, mat_type_clmn, shelfmark_modified, row_num))
-                    note.append(p)
-                    controlaccess.append(note)
-
-                rec_num += 1
-
-    # This puts together two parts of each child's tree (header+description)
-    # This will append as many children as there are in the Excel tab
-                full_ead.append(eadheader)
-                full_ead.append(archdesc)
-
-    # This part writes out the XML file
-            with open(end_directory+"/"+"Translation_English_"+shelfmark_modified+"_"+str(
-                    datetime.now().strftime("%Y%m%d_%H%M")
-                    )+'.xml', 'wb') as f:
-                f.write(etree.tostring(
-                    full_ead, encoding="utf-8", xml_declaration=True,
-                    pretty_print=True))
-            sh_complete_label.config(text="Complete", bg="green", fg="white")
-            sh_wordcount.config(text=wordcount)
-        else:
-            sh_verif_lbl.configure(text="Not recognised", bg="#cc0000",
-                                   fg="white")
+            else:
+                sh_verif_lbl.configure(text="IAMS Template recognised", bg="#cc0000",
+                                        fg="white")
+                sh_complete_label.configure(text="Unable to complete", fg="#cc0000", bg ="#F0F0F0")
+                # sh_furth_steps_label.config(text="Check the IAMS Template sheet" , fg="black")
+        
     wb.close()
     auth_file_wb.close()
     status = "Process complete"
@@ -804,30 +817,30 @@ app = tk.Tk()
 app.title("Gather Renewed")
 app.option_add("*font", "calibri 10")
 
-title_lbl = tk.Label(master=app, text="Gather Renewed", bg="#eeeeee",
+title_lbl = tk.Label(master=app, text="Gather Renewed", bg="#F0F0F0",
                      fg="black", anchor="w", font=("calibri", 18, "bold"))
 instr_lbl = tk.Label(master=app,
                      text="Please select the IAMS template to gather, the relevant Authority File sheet and a destination folder for the created files. Once ready, click 'Run'.",
                      anchor="w")
 
-selection_frm = tk.LabelFrame(master=app, text="Select Files", bg="#eeeeee",
+selection_frm = tk.LabelFrame(master=app, text="Select Files", bg="#F0F0F0",
                               fg="black")
 # IAMS Fields
 IAMS_label = tk.Label(master=selection_frm, text="Import IAMS Template",
-                      bg="#eeeeee", fg="black")
+                      bg="#F0F0F0", fg="black")
 IAMS_button = tk.Button(selection_frm, text='Open', bg="#0b5394", fg="white",
                         command=UploadIAMS)
 IAMS_filename_label = tk.Entry(master=selection_frm)
 # AuthFiles Fields
 auth_file_label = tk.Label(master=selection_frm,
-                           text="Import Authorities Spreadsheet", bg="#eeeeee",
+                           text="Import Authorities Spreadsheet", bg="#F0F0F0",
                            fg="black")
 auth_file_button = tk.Button(selection_frm, text='Open', bg="#0b5394",
                              fg="white", command=UploadAuth)
 auth_filename_label = tk.Entry(master=selection_frm)
 # Destination Fields
 dir_label = tk.Label(master=selection_frm,
-                     text="Select directory to save files to", bg="#eeeeee",
+                     text="Select directory to save files to", bg="#F0F0F0",
                      fg="black")
 dir_button = tk.Button(selection_frm, text='Open', bg="#0b5394", fg="white",
                        command=askDirectory)
@@ -838,14 +851,16 @@ run_button = tk.Button(master=app, text="Run", bg="green", fg="white",
                                                    auth_filename,
                                                    end_directory))
 # Running frame
-run_frame = tk.LabelFrame(master=app, text="Running", bg="#eeeeee", fg="black")
-run_shmark = tk.Label(master=run_frame, text="Shelfmark", bg="#eeeeee",
+run_frame = tk.LabelFrame(master=app, text="Running", bg="#F0F0F0", fg="black")
+run_shmark = tk.Label(master=run_frame, text="Shelfmark", bg="#F0F0F0",
                       fg="black")
 run_verification = tk.Label(master=run_frame, text="IAMS Template Validation",
-                            bg="#eeeeee", fg="black")
-run_status = tk.Label(master=run_frame, text="Status", bg="#eeeeee",
+                            bg="#F0F0F0", fg="black")
+run_status = tk.Label(master=run_frame, text="Status", bg="#F0F0F0",
                       fg="black")
-run_wordcount = tk.Label(master=run_frame, text="Wordcount", bg="#eeeeee",
+run_further_steps = tk.Label(master=run_frame, text="Further Steps", bg="#F0F0F0",
+                      fg="black")
+run_wordcount = tk.Label(master=run_frame, text="Wordcount", bg="#F0F0F0",
                          fg="black")
 
 title_lbl.grid(column=0, row=0, sticky="nsew", padx=5)
@@ -875,7 +890,8 @@ run_frame.grid(column=0, row=4, sticky="nsew", padx=5, pady=5)
 run_shmark.grid(column=0, row=0, sticky="nsew", padx=5, pady=5)
 run_verification.grid(column=1, row=0, sticky="nsew", padx=5, pady=5)
 run_status.grid(column=2, row=0, sticky="nsew", padx=5, pady=5)
-run_wordcount.grid(column=3, row=0, sticky="nsew", padx=5, pady=5)
+run_further_steps.grid(column=3, row=0, sticky="nsew", padx=5, pady=5)
+run_wordcount.grid(column=4, row=0, sticky="nsew", padx=5, pady=5)
 
 app.columnconfigure(0, weight=1)
 selection_frm.columnconfigure(0, weight=1)
@@ -884,5 +900,6 @@ selection_frm.columnconfigure(2, weight=10)
 run_frame.columnconfigure(0, weight=1)
 run_frame.columnconfigure(1, weight=2)
 run_frame.columnconfigure(2, weight=3)
+run_frame.columnconfigure(3, weight=2)
 
 app.mainloop()
