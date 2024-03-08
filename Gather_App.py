@@ -161,31 +161,34 @@ def date_normal(row, arg):
     return {"normal": date}
 
 
-def pcontent(row, arg, E, shelfmark_modified, row_num, sh_furth_steps_label):
+def pcontent(text, row, arg, E, shelfmark_modified, row_num, sh_furth_steps_label):
     '''Creates the p node of free text fields and bullet point logic'''
     global tid_num
     content = []
     lists = E.list()
-    if row[arg].value:
-        list_content = []
-        paragraph_initial = row[arg].value.replace("</list></p>","").replace("<p><list>","<list>")
+    if text:
+        paragraph_initial = text.replace("<p><list>","<list>").strip()
         paragraphs = paragraph_initial.split("</p>")
+        print("paragraph =", paragraphs)
         for chunk in paragraphs:
+            list_content = []
             lines = chunk.split("</item>")
             for line in lines:
                 line = line.strip()
-                if line:
+                if line != "":
                     tid_label = tid(row, arg, shelfmark_modified, row_num)
-                    if line.find('<emph render="italic">') != -1:
+                    if line.find("<emph render='italic'>") != -1:
+                        line = line.replace("<emph render='italic'>",'<emph render="italic">')
+                    if line.find('<emph render="italic">') != -1: 
                         sh_furth_steps_label.config(text="Replace &lt; with < and &gt; with >" , fg="black", bg="#f1c232")
                         section1 = line.replace("</emph><emph","</emph> <emph")
-                        sections = section1.split(' <emph')
+                        sections = section1.split('<emph')
                         emphatic_line = ""
                         for section in sections:
                             if section.find('render="italic">') != -1:
                                 sh_furth_steps_label.config(text="Replace &lt; with < and &gt; with >" , fg="black")
-                                top = section.split('render="italic">')[0]
-                                emph_all = section.split('render="italic">')[1]
+                                top = section.split(' render="italic">')[0]
+                                emph_all = section.split(' render="italic">')[1]
                                 emph = emph_all.split('</emph>')[0]
                                 bottom = section.split("</emph>")[1]
                                 emph_tid = shelfmark_modified+"_"+str(tid_num)
@@ -208,12 +211,11 @@ def pcontent(row, arg, E, shelfmark_modified, row_num, sh_furth_steps_label):
                     else:
                         line = line.replace("<p>", "")
                         bttm_p = E.p(line, tid_label)
-                        content.append(bttm_p)    
+                        content.append(bttm_p) 
     else:
         p = E.p()
         content.append(p)
     return content
-
 
 def title_content(row, arg, E, shelfmark_modified, row_num, sh_furth_steps_label):
     '''Creates the p node of free text fields and bullet point logic'''
@@ -640,10 +642,14 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                                                                 row_num))
                                 did.append(materialspec)
 
+
+                        text = row[access_cond_clmn].value.split("</list></p>")
                         accessrestrict = E.accessrestrict()
-                        for p in pcontent(row, access_cond_clmn, E, shelfmark_modified,
-                                        row_num, sh_furth_steps_label):
-                            accessrestrict.append(p)
+                        for i in text:
+                            if i:
+                                cnt = pcontent(i, row, access_cond_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                for l in cnt:
+                                    accessrestrict.append(l)
                         archdesc.append(accessrestrict)
 
                         accessrestrict = E.accessrestrict()
@@ -661,9 +667,18 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                         archdesc.append(accruals)
 
                         bioghist = E.bioghist()
-                        for p in pcontent(row, admin_context_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label):
+                        if row[admin_context_clmn].value:
+                            text = row[admin_context_clmn].value.split("</list></p>")
+                            for i in text:
+                                if i:
+                                    cnt = pcontent(i, row, admin_context_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    for l in cnt:
+                                        bioghist.append(l)
+                            archdesc.append(bioghist)
+                        else:
+                            p = E.p()
                             bioghist.append(p)
-                        archdesc.append(bioghist)
+                            archdesc.append(bioghist)
 
                         appraisal = E.appraisal()  # Empty node
                         p = E.p()
@@ -671,55 +686,94 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                         archdesc.append(appraisal)
 
                         arrangement = E.arrangement()
-                        for p in pcontent(row, arrangement_clmn, E, shelfmark_modified,
-                                        row_num, sh_furth_steps_label):
+                        if row[arrangement_clmn].value:
+                            text = row[arrangement_clmn].value.split("</list></p>")
+                            for i in text:
+                                if i:
+                                    cnt = pcontent(i, row, arrangement_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    for l in cnt:
+                                        arrangement.append(l)
+                            archdesc.append(arrangement)
+                        else:
+                            p = E.p()
                             arrangement.append(p)
-                        archdesc.append(arrangement)
+                            archdesc.append(arrangement)
 
                         # Adds custodial history if necessary
                         if row[cust_hist_clmn].value:
-                            custodial_history = E.custodhist()
-                            for p in pcontent(row, cust_hist_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label):
-                                custodial_history.append(p)
-                            archdesc.append(custodial_history)
+                            text = row[cust_hist_clmn].value.split("</list></p>")
+                            custodhist = E.custodhist()
+                            for i in text:
+                                if i:
+                                    print("line =", i)
+                                    cnt = pcontent(i, row, cust_hist_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    for l in cnt:
+                                        custodhist.append(l)
+                            archdesc.append(custodhist)
                         
                         # Adds finding aids if necessary
                         if row[find_aids_clmn].value:
+                            text = row[find_aids_clmn].value.split("</list></p>")
                             otherfindaid = E.otherfindaid()
-                            for p in pcontent(row, find_aids_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label):
-                                otherfindaid.append(p)
+                            for i in text:
+                                if i:
+                                    cnt = pcontent(i, row, find_aids_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    for l in cnt:
+                                        otherfindaid.append(l)
                             archdesc.append(otherfindaid)
                         
-                        # Adds finding aids if necessary
+                        # Adds pubblication notes if necessary
                         if row[pub_notes_clmn].value:
+                            text = row[pub_notes_clmn].value.split("</list></p>")
                             bibliography = E.bibliography()
-                            for p in pcontent(row, pub_notes_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label):
-                                bibliography.append(p)
+                            for i in text:
+                                if i:
+                                    cnt = pcontent(i, row, pub_notes_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    for l in cnt:
+                                        bibliography.append(l)
                             archdesc.append(bibliography)
 
-                        # Adds custodial history if necessary
+                        # Adds acquisition notes if necessary
                         if row[imm_acq_column].value:
+                            text = row[imm_acq_column].value.split("</list></p>")
                             acqinfo = E.acqinfo()
-                            for p in pcontent(row, imm_acq_column, E, shelfmark_modified, row_num, sh_furth_steps_label):
-                                acqinfo.append(p)
+                            for i in text:
+                                if i:
+                                    cnt = pcontent(i, row, imm_acq_column, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    for l in cnt:
+                                        acqinfo.append(l)
                             archdesc.append(acqinfo)
 
                         # This allows to skip the node if item is part of a bigger volume
-                        if row_num == 1 or row[
-                                mat_type_clmn].value != "Archives and Manuscripts":
+                        if row_num == 1 or row[mat_type_clmn].value != "Archives and Manuscripts":
                             phystech = E.phystech()
-                            for p in pcontent(
-                                    row, phys_char_clmn, E, shelfmark_modified,
-                                    row_num, sh_furth_steps_label):
+                            if row[phys_char_clmn].value:
+                                text = row[phys_char_clmn].value.split("</list></p>")
+                                for i in text:
+                                    if i:
+                                        cnt = pcontent(i, row, phys_char_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                        for l in cnt:
+                                            phystech.append(l)
+                                archdesc.append(phystech)
+                            else:
+                                p = E.p()
                                 phystech.append(p)
-                            archdesc.append(phystech)
+                                archdesc.append(phystech)
 
+                        # Adds Scope and Content field
                         scopecontent = E.scopecontent()
-                        for p in pcontent(
-                                row, scope_content_clmn, E, shelfmark_modified,
-                                row_num, sh_furth_steps_label):
+                        if row[scope_content_clmn].value:
+                            text = row[scope_content_clmn].value.split("</list></p>")
+                            for i in text:
+                                if i:
+                                    cnt = pcontent(i, row, scope_content_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    for l in cnt:
+                                        scopecontent.append(l)
+                            archdesc.append(scopecontent)
+                        else:
+                            p = E.p()
                             scopecontent.append(p)
-                        archdesc.append(scopecontent)
+                            archdesc.append(scopecontent)
 
                         userestrict = E.userestrict()  # Empty node
                         p = E.p()
