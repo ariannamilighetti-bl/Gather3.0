@@ -7,16 +7,13 @@ Created on Tue Jan 30 14:10:39 2024
 from tkinter import *
 import tkinter as tk
 from tkinter import filedialog
-
 from datetime import datetime
 
+import openpyxl.cell
 from lxml import etree
 from lxml.builder import ElementMaker
 from lxml.etree import Comment
 from openpyxl import load_workbook
-
-
-
 
 # These are the column number for the fields used
 # If the template changes, change the column numbers here
@@ -161,7 +158,22 @@ def date_normal(row, arg):
     return {"normal": date}
 
 
-def pcontent(text, row, arg, E, shelfmark_modified, row_num, sh_furth_steps_label):
+"""
+I've added type hints to this fn.
+Python is dynamically typed - languages like C/Java are statically typed
+This means you don't have to declare a type for each variable and code is more readable
+But errors can occur if a var has the wrong type
+Type hints explain what type each arg to a fn should have
+This makes the fn easier to understand and IDEs can pick up when the wrong type is being passed in
+"""
+def pcontent(
+        text: str,  # These are called type hints, they help explain what type each arg should be
+        row: tuple[openpyxl.cell.ReadOnlyCell],
+        arg: int,
+        E: ElementMaker,
+        shelfmark_modified: str,
+        row_num: int,
+ ) -> list[str]:  # can also add a type hint for the return val
     '''Creates the p node of free text fields and bullet point logic'''
     global tid_num
     content = []
@@ -169,74 +181,125 @@ def pcontent(text, row, arg, E, shelfmark_modified, row_num, sh_furth_steps_labe
     if text:
         paragraph_initial = text.replace("<p><list>","<list>").strip()
         paragraphs = paragraph_initial.split("</p>")
-        print("paragraph =", paragraphs)
+        # print("paragraph =", paragraphs)
         for chunk in paragraphs:
             list_content = []
             lines = chunk.split("</item>")
             for line in lines:
                 line = line.strip()
                 if line != "":
-                    tid_label = tid(row, arg, shelfmark_modified, row_num)
+                    tid_label = tid(row, arg, shelfmark_modified, row_num)['tid']  # we need the tid val now not a dict
                     if line.find("<emph render='italic'>") != -1:
                         line = line.replace("<emph render='italic'>",'<emph render="italic">')
-                    if line.find('<emph render="italic">') != -1: 
-                        sh_furth_steps_label.config(text="Replace &lt; with < and &gt; with >" , fg="black", bg="#f1c232")
+                    if line.find('<emph render="italic">') != -1:
                         section1 = line.replace("</emph><emph","</emph> <emph")
                         sections = section1.split('<emph')
-                        emphatic_line = ""
+                        emphatic_line = []
                         for section in sections:
                             if section.find('render="italic">') != -1:
-                                sh_furth_steps_label.config(text="Replace &lt; with < and &gt; with >" , fg="black")
                                 top = section.split(' render="italic">')[0]
                                 emph_all = section.split(' render="italic">')[1]
                                 emph = emph_all.split('</emph>')[0]
                                 bottom = section.split("</emph>")[1]
                                 emph_tid = shelfmark_modified+"_"+str(tid_num)
                                 tid_num += 1
-                                emphatic_line += top + '<ead:emph render="italic" tid="' + emph_tid + '">' + emph + '</ead:emph>' + bottom
+                                # E.emph is the equivalent here of E.subtag in the ElementMaker docs
+                                # I've replaced the strings with a list including E.emph elements for any emphatics required
+                                emphatic_line += [top]
+                                emphatic_line += [E.emph(emph, render="italic", tid=emph_tid)]
+                                emphatic_line += [bottom]
                             else:
-                                emphatic_line += section
+                                emphatic_line += [section]
                             line = emphatic_line
-                    line = line.replace("<list>", "").replace("</list>", "")
-                    if line.startswith("<item>"):
-                        line = line.replace("<item>", "")
+
+                    # if no emphatics in the line we still need to make it a list for the next logic
+                    if type(line) != list:
+                        line = [line]
+
+                    # need to iterate over the elements of line and replace certain strings with ""
+                    # not all elements of line are strings - some are E.emph elements
+                    # replace_if_str lets us safely skip these
+                    def replace_if_str(elem, *args):
+                        """
+                        Replace all args with "" if elem is a string
+                        Otherwise return elem
+                        """
+                        if type(elem) == str:
+                            for a in args:
+                                elem = elem.replace(a, "")
+                            return elem
+                        else:
+                            return elem
+
+                    # original logic was just str.replace
+                    # have changed line to a list of str/elements so need to iterate this now
+                    # this is true for all the str.replace calls that followed
+                    line = [replace_if_str(elem, "<list>", "</list>") for elem in line]
+
+                    if line[0].startswith("<item>"):
+                        # line = line.replace("<item>", "")
+                        line = [replace_if_str(elem, "<item>") for elem in line]
                         list_content.append(line)
-                        line_content = E.item(line, tid_label)
+                        line_content = E.item(*line, tid=tid_label)  # crucially need a `*` to unpack line
                         lists.append(line_content)
                         content.append(lists)
                     elif list_content == []:
-                        line = line.replace("<p>", "")
-                        top_p = E.p(line, tid_label)
+                        line = [replace_if_str(elem, "<p>") for elem in line]
+                        top_p = E.p(*line, tid=tid_label)  # crucially need a `*` to unpack line
                         content.append(top_p)
                     else:
-                        line = line.replace("<p>", "")
-                        bttm_p = E.p(line, tid_label)
-                        content.append(bttm_p) 
+                        line = [replace_if_str(elem, "<p>") for elem in line]
+                        bttm_p = E.p(*line, tid=tid_label)  # crucially need a `*` to unpack line
+                        content.append(bttm_p)
     else:
         p = E.p()
         content.append(p)
     return content
 
-def title_content(row, arg, E, shelfmark_modified, row_num, sh_furth_steps_label):
+
+def title_content(row: tuple[openpyxl.cell.ReadOnlyCell],
+        arg: int,
+        E: ElementMaker,
+        shelfmark_modified: str,
+        row_num: int,
+ ) -> list[str]:
     '''Creates the p node of free text fields and bullet point logic'''
     global tid_num
-    # content=[]
     if row[arg].value:
-        tid_label = tid(row, arg, shelfmark_modified, row_num)
+        tid_label = tid(row, arg, shelfmark_modified, row_num)['tid']
         line = row[arg].value
+        if line.find("<emph render='italic'>") != -1:
+            line = line.replace("<emph render='italic'>",'<emph render="italic">')
         if line.find('<emph render="italic">') != -1:
-            sh_furth_steps_label.config(text="Replace &lt; with < and &gt; with >" , fg="black", bg="#f1c232")
-            top = line.split('<emph render="italic">')[0]
-            emph_all = line.split('<emph render="italic">')[1]
-            emph = emph_all.split('</emph>')[0]
-            bottom = line.split("</emph>")[1]
-            emph_tid = shelfmark_modified+"_"+str(tid_num)
-            tid_num += 1
-            line = top + '<ead:emph render="italic" tid="' + emph_tid + '">' + emph + '</ead:emph>' + bottom
-            title_full = E.title(line, tid_label)
+            section1 = line.replace("</emph><emph","</emph> <emph")
+            sections = section1.split('<emph')
+            emphatic_line = []
+            for section in sections:
+                if section.find('render="italic">') != -1:
+                    top = section.split(' render="italic">')[0]
+                    emph_all = section.split(' render="italic">')[1]
+                    emph = emph_all.split('</emph>')[0]
+                    bottom = section.split("</emph>")[1]
+                    emph_tid = shelfmark_modified+"_"+str(tid_num)
+                    tid_num += 1
+                    # E.emph is the equivalent here of E.subtag in the ElementMaker docs
+                    # I've replaced the strings with a list including E.emph elements for any emphatics required
+                    emphatic_line += [top]
+                    emphatic_line += [E.emph(emph, render="italic", tid=emph_tid)]
+                    emphatic_line += [bottom]
+                else:
+                    emphatic_line += [section]
+                line = emphatic_line
+         # if no emphatics in the line we still need to make it a list for the next logic
+                if type(line) != list:
+                    line = [line]
+
+                title_full = E.title(*line, tid=tid_label)  # crucially need a `*` to unpack line
+                # content.append(title_full)
+            return title_full
         else:
-            title_full = E.title(line, tid_label)
-        return title_full
+            title_full = E.title(line, tid=tid_label)
+            return title_full
     else:
         title_full = E.title()
         return title_full
@@ -448,7 +511,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
             ws = wb[shelfmark_modified]
             header_row = get_header(ws)
             E = ElementMaker(namespace="urn:isbn:1-931666-22-9",
-                            nsmap={'ead': "urn:isbn:1-931666-22-9",
+                             nsmap={'ead': "urn:isbn:1-931666-22-9",
                                     'xlink': "http://www.w3.org/1999/xlink",
                                     'xsi':
                                         "http://www.w3.org/2001/XMLSchema-instance"
@@ -564,7 +627,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                         did.append(unittitle)
 
                         # Item title
-                        text_title = title_content(row, title_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                        text_title = title_content(row, title_clmn, E, shelfmark_modified, row_num)
                         unittitle.append(text_title)
 
                         if row[ext_ref_clmn].value:
@@ -647,7 +710,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                         accessrestrict = E.accessrestrict()
                         for i in text:
                             if i:
-                                cnt = pcontent(i, row, access_cond_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                cnt = pcontent(i, row, access_cond_clmn, E, shelfmark_modified, row_num)
                                 for l in cnt:
                                     accessrestrict.append(l)
                         archdesc.append(accessrestrict)
@@ -671,7 +734,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                             text = row[admin_context_clmn].value.split("</list></p>")
                             for i in text:
                                 if i:
-                                    cnt = pcontent(i, row, admin_context_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    cnt = pcontent(i, row, admin_context_clmn, E, shelfmark_modified, row_num)
                                     for l in cnt:
                                         bioghist.append(l)
                             archdesc.append(bioghist)
@@ -690,7 +753,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                             text = row[arrangement_clmn].value.split("</list></p>")
                             for i in text:
                                 if i:
-                                    cnt = pcontent(i, row, arrangement_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    cnt = pcontent(i, row, arrangement_clmn, E, shelfmark_modified, row_num)
                                     for l in cnt:
                                         arrangement.append(l)
                             archdesc.append(arrangement)
@@ -706,7 +769,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                             for i in text:
                                 if i:
                                     print("line =", i)
-                                    cnt = pcontent(i, row, cust_hist_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    cnt = pcontent(i, row, cust_hist_clmn, E, shelfmark_modified, row_num)
                                     for l in cnt:
                                         custodhist.append(l)
                             archdesc.append(custodhist)
@@ -717,7 +780,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                             otherfindaid = E.otherfindaid()
                             for i in text:
                                 if i:
-                                    cnt = pcontent(i, row, find_aids_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    cnt = pcontent(i, row, find_aids_clmn, E, shelfmark_modified, row_num)
                                     for l in cnt:
                                         otherfindaid.append(l)
                             archdesc.append(otherfindaid)
@@ -728,7 +791,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                             bibliography = E.bibliography()
                             for i in text:
                                 if i:
-                                    cnt = pcontent(i, row, pub_notes_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    cnt = pcontent(i, row, pub_notes_clmn, E, shelfmark_modified, row_num)
                                     for l in cnt:
                                         bibliography.append(l)
                             archdesc.append(bibliography)
@@ -739,7 +802,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                             acqinfo = E.acqinfo()
                             for i in text:
                                 if i:
-                                    cnt = pcontent(i, row, imm_acq_column, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    cnt = pcontent(i, row, imm_acq_column, E, shelfmark_modified, row_num)
                                     for l in cnt:
                                         acqinfo.append(l)
                             archdesc.append(acqinfo)
@@ -751,7 +814,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                                 text = row[phys_char_clmn].value.split("</list></p>")
                                 for i in text:
                                     if i:
-                                        cnt = pcontent(i, row, phys_char_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                        cnt = pcontent(i, row, phys_char_clmn, E, shelfmark_modified, row_num)
                                         for l in cnt:
                                             phystech.append(l)
                                 archdesc.append(phystech)
@@ -766,7 +829,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                             text = row[scope_content_clmn].value.split("</list></p>")
                             for i in text:
                                 if i:
-                                    cnt = pcontent(i, row, scope_content_clmn, E, shelfmark_modified, row_num, sh_furth_steps_label)
+                                    cnt = pcontent(i, row, scope_content_clmn, E, shelfmark_modified, row_num)
                                     for l in cnt:
                                         scopecontent.append(l)
                             archdesc.append(scopecontent)
