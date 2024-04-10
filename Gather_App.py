@@ -340,28 +340,46 @@ def gen_auth_lookup(auth_ws):
     auth_lookup = {}
     reference = 1
     for row_num, row in enumerate(auth_ws.iter_rows(min_row=2)):
+        possible_types = ["(Event)","(Term)","(Authorised)","(Parallel)","(Other)","(Building)","(Title of Work)"]
         reference += 1
         auth_file_attr = []
-        if row[0].value:
-            auth_file_attr.append(row[0].value)
+        single_auth_name = []
+        all_names = row[0].value.replace("|", " xx ").replace(" xxx ", " xx ")
+        if all_names.find(" xx ") != -1:
+            names_and_types = all_names.split(" xx ")
         else:
-            auth_file_attr.append("not_found")
-        if row[1].value:
-            auth_file_attr.append(row[1].value)
-        else:
-            auth_file_attr.append("not_found")
-        if row[2].value:
-            auth_file_attr.append(row[2].value)
-        else:
-            auth_file_attr.append("not_found")
-        if row[3].value:
-            auth_file_attr.append(row[3].value)
-        else:
-            auth_file_attr.append("not_found")
-        if row[4].value:
-            auth_file_attr.append(row[4].value)
-        else:
-            auth_file_attr.append("not_found")
+            names_and_types = [all_names]
+        for name in names_and_types:
+            for find_type in possible_types:
+                if find_type in name:
+                    auth_name = name.split(find_type)[0]
+                    auth_type = find_type.replace("(","").replace(")","")
+                    break
+                else:
+                    auth_name = name
+                    auth_type = "not_found"
+            if auth_name:
+                single_auth_name.append(auth_name)
+            else:
+                single_auth_name.append("not_found")
+            if row[1].value:
+                single_auth_name.append(row[1].value)
+            else:
+                single_auth_name.append("not_found")
+            if row[2].value:
+                single_auth_name.append(row[2].value)
+            else:
+                single_auth_name.append("not_found")
+            if auth_type:
+                single_auth_name.append(auth_type)
+            else:
+                single_auth_name.append("not_found")
+            if row[4].value:
+                single_auth_name.append(row[4].value)
+            else:
+                single_auth_name.append("not_found")
+            auth_file_attr.append(single_auth_name)
+            single_auth_name = []
         auth_lookup[reference] = auth_file_attr
     return auth_lookup
 
@@ -384,26 +402,31 @@ def authority_files(row, arg, auth_lookup, E, shelfmark_modified, row_num):
                             rel_places_clmn: E.geogname,
                             rel_subject_clmn: E.subject}
             current_auth = auth_lookup.get(int(line))
-            if arg == rel_persons_clmn or arg == rel_fams_clmn or arg == rel_corp_bds_clmn:
-                text = element_dict[arg](current_auth[0],
-                    {"authfilenumber": current_auth[1]},
-                    {"role": current_auth[2]},
-                    {"source": "IAMS"},
-                    {"altrender": current_auth[3]},
-                    tid(row, arg, shelfmark_modified, row_num))
-            elif arg == rel_subject_clmn:
-                text = element_dict[arg](current_auth[0],
-                    {"authfilenumber": current_auth[1]},
-                    {"altrender": current_auth[3]},
-                    {"source": "IAMS"},
-                    tid(row, arg, shelfmark_modified, row_num))
-            else:
-                text = element_dict[arg](current_auth[0],
-                    {"authfilenumber": current_auth[1]},
-                    {"role": current_auth[2]},
-                    {"source": "IAMS"},
-                    tid(row, arg, shelfmark_modified, row_num))
-            full_text.append(text)
+            for par_auth in current_auth:
+                if arg == rel_persons_clmn or arg == rel_fams_clmn or arg == rel_corp_bds_clmn:
+                    if arg == rel_persons_clmn and par_auth[0].find(",") != -1:
+                        real_name = par_auth[0].split(",")
+                        real_name = reversed(real_name)
+                        par_auth[0] = " ".join(real_name)
+                    text = element_dict[arg](par_auth[0],
+                        {"authfilenumber": par_auth[1]},
+                        {"role": par_auth[2]},
+                        {"source": "IAMS"},
+                        {"altrender": par_auth[3]},
+                        tid(row, arg, shelfmark_modified, row_num))
+                elif arg == rel_subject_clmn:
+                    text = element_dict[arg](par_auth[0],
+                        {"authfilenumber": par_auth[1]},
+                        {"altrender": par_auth[3]},
+                        {"source": "IAMS"},
+                        tid(row, arg, shelfmark_modified, row_num))
+                else:
+                    text = element_dict[arg](par_auth[0],
+                        {"authfilenumber": par_auth[1]},
+                        {"role": par_auth[2]},
+                        {"source": "IAMS"},
+                        tid(row, arg, shelfmark_modified, row_num))
+                full_text.append(text)
         return full_text
     else:
         return ""
@@ -542,6 +565,7 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
 
             # This part creates the tree for each child shelfmark.
                     for row in ws.iter_rows(min_row=5, values_only=False):
+                        print(type(row))
                         ead = E.ead()
                         comment = Comment(
                             f"New record starts here {row[reference_clmn].value}")
@@ -933,21 +957,34 @@ def askDirectory(event=None):
 app = tk.Tk()
 app.title("Gather Renewed")
 app.option_add("*font", "calibri 10")
+app.minsize(630, 220)
 
-title_lbl = tk.Label(master=app, text="Gather Renewed", bg="#F0F0F0",
-                     fg="black", anchor="w", font=("calibri", 18, "bold"))
-instr_lbl = tk.Label(master=app,
+title_lbl = tk.Label(master=app, text="Gather Renewed", bg="#F0F0F0", fg="black", anchor="w", font=("calibri", 18, "bold"))
+title_lbl.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+
+frame = tk.Frame(app)
+frame.grid(row=1, column=0, sticky="nsew")
+canvas = tk.Canvas(frame)
+scrollbar = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+canvas.configure(yscrollcommand=scrollbar.set)
+content_frame = tk.Frame(canvas)
+content_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+#title_lbl = tk.Label(master=content_frame, text="Gather Renewed", bg="#F0F0F0",
+                     #fg="black", anchor="w", font=("calibri", 18, "bold"))
+instr_lbl = tk.Label(master=content_frame,
                      text="Please select the IAMS template to gather, the relevant Authority File sheet and a destination folder for the created files. Once ready, click 'Run'.",
-                     anchor="w")
+                     anchor="w", wraplength= 600, justify = LEFT)
 
-selection_frm = tk.LabelFrame(master=app, text="Select Files", bg="#F0F0F0",
-                              fg="black")
+
 # IAMS Fields
+selection_frm = tk.LabelFrame(master=content_frame, text="Select Files", bg="#F0F0F0",
+                              fg="black")
 IAMS_label = tk.Label(master=selection_frm, text="Import IAMS Template",
                       bg="#F0F0F0", fg="black")
 IAMS_button = tk.Button(selection_frm, text='Open', bg="#0b5394", fg="white",
                         command=UploadIAMS)
-IAMS_filename_label = tk.Entry(master=selection_frm)
+IAMS_filename_label = tk.Entry(master=selection_frm, width = 50)
 # AuthFiles Fields
 auth_file_label = tk.Label(master=selection_frm,
                            text="Import Authorities Spreadsheet", bg="#F0F0F0",
@@ -963,12 +1000,15 @@ dir_button = tk.Button(selection_frm, text='Open', bg="#0b5394", fg="white",
                        command=askDirectory)
 end_directory_label = tk.Entry(master=selection_frm)
 # Run button
-run_button = tk.Button(master=app, text="Run", bg="green", fg="white",
+run_button = tk.Button(master=content_frame, text="Run", bg="green", fg="white",
                        command=lambda: QatarGather(IAMS_filename,
                                                    auth_filename,
                                                    end_directory))
+
 # Running frame
-run_frame = tk.LabelFrame(master=app, text="Running", bg="#F0F0F0", fg="black")
+
+run_frame = tk.LabelFrame(master=content_frame, text="Running", bg="#F0F0F0", fg="black")
+
 run_shmark = tk.Label(master=run_frame, text="Shelfmark", bg="#F0F0F0",
                       fg="black")
 run_verification = tk.Label(master=run_frame, text="IAMS Template Validation",
@@ -1004,19 +1044,24 @@ end_directory_label.grid(column=2, row=2, columnspan=3, sticky="nsew", padx=5,
 run_button.grid(column=0, row=3, sticky="nsew", padx=5, pady=5)
 
 run_frame.grid(column=0, row=4, sticky="nsew", padx=5, pady=5)
-run_shmark.grid(column=0, row=0, sticky="nsew", padx=5, pady=5)
-run_verification.grid(column=1, row=0, sticky="nsew", padx=5, pady=5)
-run_status.grid(column=2, row=0, sticky="nsew", padx=5, pady=5)
-run_further_steps.grid(column=3, row=0, sticky="nsew", padx=5, pady=5)
-run_wordcount.grid(column=4, row=0, sticky="nsew", padx=5, pady=5)
+run_shmark.grid(column=0, row=0, sticky="nsew", padx=20, pady=5)
+run_verification.grid(column=1, row=0, sticky="nsew", padx=20, pady=5)
+run_status.grid(column=2, row=0, sticky="nsew", padx=20, pady=5)
+run_further_steps.grid(column=3, row=0, sticky="nsew", padx=20, pady=5)
+run_wordcount.grid(column=4, row=0, sticky="nsew", padx=20, pady=5)
 
 app.columnconfigure(0, weight=1)
-selection_frm.columnconfigure(0, weight=1)
-selection_frm.columnconfigure(1, weight=1)
-selection_frm.columnconfigure(2, weight=10)
-run_frame.columnconfigure(0, weight=1)
-run_frame.columnconfigure(1, weight=2)
-run_frame.columnconfigure(2, weight=3)
-run_frame.columnconfigure(3, weight=2)
+frame.columnconfigure(0, weight=1)
+frame.rowconfigure(0, weight=1)
+
+
+canvas.create_window((0, 0), window=content_frame, anchor="nw")
+canvas.grid(row=0, column=0, sticky="nsew")
+scrollbar.grid(row=0, column=1, sticky="ns")
+
+def _on_mousewheel(event):
+   canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
 app.mainloop()
