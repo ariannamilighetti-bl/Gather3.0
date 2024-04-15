@@ -181,7 +181,6 @@ def pcontent(
     if text:
         paragraph_initial = text.replace("<p><list>","<list>").strip()
         paragraphs = paragraph_initial.split("</p>")
-        # print("paragraph =", paragraphs)
         for chunk in paragraphs:
             list_content = []
             lines = chunk.split("</item>")
@@ -308,9 +307,12 @@ def title_content(row: tuple[openpyxl.cell.ReadOnlyCell],
 def current_wordcount(row):
     '''Calculates the number of workds in the Excel row'''
     wc = 0
-    for i in range(0, len(row), 1):
+    print(row)
+    counted_fields = [repository_clmn,coll_area_clmn,level_clmn,reference_clmn,ext_ref_clmn,title_clmn,date_rng_clmn,era_clmn,calendar_clmn,extent_clmn,scope_content_clmn,phys_char_clmn,access_cond_clmn,imm_acq_column,cust_hist_clmn,admin_context_clmn,arrangement_clmn,scale_clmn,scale_des_clmn,projection_clmn,orientation_clmn]
+    for i in counted_fields:
+        print(i)
         if row[i].value:
-            par = str(row[i].value).replace("><", " ")
+            par = str(row[i].value).replace("<p>", " ").replace("</p>", " ").replace("<list>","").replace("</list>","").replace("<item>"," ").replace("</item>"," ")
             wc += len(par.split())
     return wc
 
@@ -320,7 +322,7 @@ def auth_validation(auth_ws):
     header = []
     for cell in auth_ws[1]:
         header.append(cell.value)
-    if len(header)>= 5 and str(header[0])=="Name":
+    if len(header)>= 5 and str(header[1])=="Ark for Gather":
         validated = True
     else:
         validated = False
@@ -437,7 +439,6 @@ def template_verification(ws, sh_complete_label, sh_furth_steps_label):
     '''Checks the well-formedness of the IAMS template'''
     current_template_order = get_header(ws)
     approved_order = ['Repository','Collection Area','Project / Collection','Level','Reference','Former external reference','Title','Date range','Start date','End date','Era','Calendar','Extent','Scope and content','Physical characteristics','Access conditions','Immediate source of acquisition','Custodial history','Administrative context','Arrangement','Related material','Finding aids','Originals information','Copies information','Publication note','Exhibition','Related archival descriptions','Language of material','Language codes of material','Scripts of material','Script codes of material','Language of description','Language code of description','Script of description','Script code of description','Related persons','Related families','Related corporate bodies','Related places','Related subjects','Decimal Latitude','Decimal Longitude','Decimal Co-ordinates','Scale','Scale Designator','Projection','Orientation','Legal status','Level of detail','Visibility','Logical type','Logical label','Page sequence range','Page label range','Material type','Item type','ARK ID','IAMS ID']
-    print(current_template_order == approved_order)
     if current_template_order == approved_order:
         validation_check = 0
         row_num = 0
@@ -565,7 +566,6 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
 
             # This part creates the tree for each child shelfmark.
                     for row in ws.iter_rows(min_row=5, values_only=False):
-                        print(type(row))
                         ead = E.ead()
                         comment = Comment(
                             f"New record starts here {row[reference_clmn].value}")
@@ -792,7 +792,6 @@ def QatarGather(IAMS_filename, Auth_filename, end_directory):
                             custodhist = E.custodhist()
                             for i in text:
                                 if i:
-                                    print("line =", i)
                                     cnt = pcontent(i, row, cust_hist_clmn, E, shelfmark_modified, row_num)
                                     for l in cnt:
                                         custodhist.append(l)
