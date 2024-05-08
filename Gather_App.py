@@ -308,7 +308,7 @@ def current_wordcount(row):
     '''Calculates the number of workds in the Excel row'''
     wc = 0
     print(row)
-    counted_fields = [repository_clmn,coll_area_clmn,level_clmn,reference_clmn,ext_ref_clmn,title_clmn,date_rng_clmn,era_clmn,calendar_clmn,extent_clmn,scope_content_clmn,phys_char_clmn,access_cond_clmn,imm_acq_column,cust_hist_clmn,admin_context_clmn,arrangement_clmn,scale_clmn,scale_des_clmn,projection_clmn,orientation_clmn]
+    counted_fields = [repository_clmn,coll_area_clmn,level_clmn,reference_clmn,ext_ref_clmn,title_clmn,date_rng_clmn,era_clmn,calendar_clmn,extent_clmn,scope_content_clmn,phys_char_clmn,access_cond_clmn,imm_acq_column,cust_hist_clmn,admin_context_clmn,arrangement_clmn,rel_mat_clmn,find_aids_clmn,or_info_clmn,copise_info_clmn,pub_notes_clmn,exhib_clmn,rel_arch_des_clmn,mat_language_clmn,mat_script_clmn,dec_lat_clmn,dec_long_clmn,dec_coords_clmn,scale_clmn,scale_des_clmn,projection_clmn,orientation_clmn]
     for i in counted_fields:
         print(i)
         if row[i].value:
