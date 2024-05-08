@@ -406,10 +406,6 @@ def authority_files(row, arg, auth_lookup, E, shelfmark_modified, row_num):
             current_auth = auth_lookup.get(int(line))
             for par_auth in current_auth:
                 if arg == rel_persons_clmn or arg == rel_fams_clmn or arg == rel_corp_bds_clmn:
-                    if arg == rel_persons_clmn and par_auth[0].find(",") != -1:
-                        real_name = par_auth[0].split(",")
-                        real_name = reversed(real_name)
-                        par_auth[0] = " ".join(real_name)
                     text = element_dict[arg](par_auth[0],
                         {"authfilenumber": par_auth[1]},
                         {"role": par_auth[2]},
